@@ -2,8 +2,6 @@
 LinkedIn job scraper using Playwright with your Chrome profile.
 Uses your existing Chrome session (cookies, login) to fetch recently listed jobs.
 
-https://docs.google.com/spreadsheets/d/1SatVMWfDTiOk6Lh-5s-XKQaAiIWyQY_TYxJlhxdeNy0/edit?gid=0#gid=0
-
 Usage:
     python linkedin_playwright_scraper.py --keywords "React TypeScript" --location "Bengaluru" --date-posted 24h
 """
@@ -20,28 +18,61 @@ from typing import Any
 import pandas as pd
 from playwright.sync_api import sync_playwright
 
-# Resume profile (matches find_matching_jobs.py)
+# Import generic Google Sheets writer
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from gsheets_writer import append_to_gsheets
+
+# Resume profile (from Eshwar Sai's resume)
 MY_SKILLS = [
     "react",
+    "next.js",
+    "nextjs",
+    "react native",
     "typescript",
+    "javascript",
+    "es6+",
     "redux",
     "redux toolkit",
-    "module federation",
-    "micro-frontend",
-    "microfrontend",
-    "webpack",
-    "webpack 5",
-    "javascript",
-    "tailwind",
     "zustand",
     "context api",
-    "websocket",
+    "tanstack query",
+    "react query",
+    "micro-frontend",
+    "microfrontend",
+    "module federation",
     "monorepo",
-    "styled components",
+    "webpack 5",
+    "webpack",
+    "vite",
+    "tailwind css",
+    "tailwind",
+    "shadcn/ui",
+    "shadcn",
     "scss",
+    "styled components",
     "mui",
-    "figma",
+    "bootstrap",
+    "code splitting",
+    "lazy loading",
+    "bundle optimization",
+    "component design",
+    "java",
+    "spring boot",
+    "python",
     "git",
+    "github",
+    "postman",
+    "swagger",
+    "figma",
+    "chrome devtools",
+    "websocket",
+    "real-time",
+    "trading",
+    "financial",
+    "ipo",
+    "investment",
+    "web socket",
 ]
 
 MY_TITLES = [
@@ -55,6 +86,15 @@ MY_TITLES = [
     "sde 2",
     "software engineer",
     "ui developer",
+    "full stack",
+    "full-stack",
+    "forward deployed",
+    "fde",
+    "react native",
+    "mobile",
+    "java",
+    "spring boot",
+    "backend",
 ]
 
 DEFAULT_KEYWORDS = "React TypeScript Frontend Engineer"
@@ -66,6 +106,11 @@ TOP_N = 40
 # Chrome user data directory (Windows default)
 CHROME_USER_DATA = Path.home() / "AppData" / "Local" / "Google" / "Chrome" / "User Data"
 CHROME_PROFILE = "Profile 1"  # Eshwar Sai Ram (eshwarsairam7@gmail.com)
+
+# Google Sheets integration - set to True to enable
+ENABLE_GSHEETS = False
+GSHEET_ID = "1ygtaLDpIaD8qrQw-UalIvjJig420XaK1VBxEpxcfMOM"
+GSHEET_GID = "806555603"
 
 
 def job_skills(job: dict[str, Any]) -> list[str]:
@@ -188,27 +233,56 @@ def select_best(jobs: list[dict[str, Any]], min_score: int, top_n: int) -> list[
     return filtered[:top_n]
 
 
-def write_excel(rows: list[dict[str, Any]], path: Path) -> Path:
-    df = pd.DataFrame(rows)
-    if df.empty:
-        df = pd.DataFrame(
-            columns=[
-                "Match %",
-                "Matched skills",
-                "Job title",
-                "Company",
-                "Location",
-                "Experience",
-                "Salary",
-                "Posted",
-                "Source",
-                "Apply link",
-            ]
-        )
+def load_existing_jobs(path: Path) -> set[str]:
+    """Load existing companies from Excel file to avoid duplicates."""
+    if not path.exists():
+        return set()
+    try:
+        df = pd.read_excel(path, sheet_name="Matching jobs")
+        if "Company" in df.columns:
+            return set(df["Company"].astype(str).str.lower().str.strip())
+    except Exception:
+        pass
+    return set()
 
+
+def write_excel(rows: list[dict[str, Any]], path: Path) -> Path:
+    """Append new jobs to existing Excel file, avoiding duplicates by company."""
+    # Load existing companies
+    existing_companies = load_existing_jobs(path)
+    print(f"  Existing companies in file: {len(existing_companies)}")
+
+    # Filter out rows with companies already in file
+    new_rows = []
+    for row in rows:
+        company = str(row.get("Company", "")).lower().strip()
+        if company and company not in existing_companies:
+            new_rows.append(row)
+            existing_companies.add(company)  # Also avoid dupes within this batch
+
+    print(f"  New unique jobs to add: {len(new_rows)} (filtered {len(rows) - len(new_rows)} duplicates)")
+
+    if not new_rows:
+        print("  No new jobs to add")
+        return path
+
+    # Load existing data if file exists
+    if path.exists():
+        try:
+            existing_df = pd.read_excel(path, sheet_name="Matching jobs")
+        except Exception:
+            existing_df = pd.DataFrame()
+    else:
+        existing_df = pd.DataFrame()
+
+    # Combine existing + new
+    new_df = pd.DataFrame(new_rows)
+    combined_df = pd.concat([existing_df, new_df], ignore_index=True) if not existing_df.empty else new_df
+
+    # Write combined data
     path.parent.mkdir(parents=True, exist_ok=True)
     with pd.ExcelWriter(path, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Matching jobs")
+        combined_df.to_excel(writer, index=False, sheet_name="Matching jobs")
         ws = writer.sheets["Matching jobs"]
         widths = {
             "A": 10,
@@ -225,13 +299,14 @@ def write_excel(rows: list[dict[str, Any]], path: Path) -> Path:
         for col, w in widths.items():
             ws.column_dimensions[col].width = w
 
-        for row_idx in range(2, len(df) + 2):
+        for row_idx in range(2, len(combined_df) + 2):
             cell = ws.cell(row=row_idx, column=10)
             url = cell.value
             if url and isinstance(url, str) and url.startswith("http"):
                 cell.hyperlink = url
                 cell.style = "Hyperlink"
 
+    print(f"  Total jobs in file: {len(combined_df)}")
     return path
 
 
@@ -319,13 +394,24 @@ def scrape_linkedin_jobs(
             overlays.forEach(el => el.remove());
         }""")
 
-        # Scroll to load more jobs
+        # Scroll to load more jobs - scroll more aggressively
         last_height = 0
-        for _ in range(5):  # Scroll a few times
+        for _ in range(15):  # Scroll more times
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             page.wait_for_timeout(2000)
             new_height = page.evaluate("document.body.scrollHeight")
             if new_height == last_height:
+                # Try clicking "Show more jobs" button if exists
+                show_more = page.query_selector(
+                    "button:has-text('Show more'), "
+                    "button:has-text('Load more'), "
+                    ".jobs-search-results-list__show-more-button, "
+                    "[data-test-show-more-jobs]"
+                )
+                if show_more:
+                    show_more.click()
+                    page.wait_for_timeout(3000)
+                    continue
                 break
             last_height = new_height
 
@@ -366,13 +452,19 @@ def scrape_linkedin_jobs(
                 )
                 job_data["location"] = location_elem.inner_text().strip() if location_elem else ""
 
-                # Posted date
+                # Posted date - try to extract from detail panel (avoid "Home" nav element)
                 posted_elem = page.query_selector(
                     ".job-details-jobs-unified-top-card__posted-date, "
                     ".jobs-unified-top-card__posted-date, "
-                    "[data-test-job-posted-date]"
+                    "[data-test-job-posted-date], "
+                    "time[datetime], "
+                    ".job-details-jobs-unified-top-card__bullet time"
                 )
-                job_data["posted"] = posted_elem.inner_text().strip() if posted_elem else ""
+                posted_text = posted_elem.inner_text().strip() if posted_elem else ""
+                # Filter out nav elements like "Home"
+                if posted_text.lower() in ("home", "jobs", "network", "messaging", "notifications", "me"):
+                    posted_text = ""
+                job_data["posted"] = posted_text if posted_text else f"Within {date_posted} (search filter)"
 
                 # Job URL
                 job_data["url"] = page.url
@@ -441,7 +533,7 @@ def main() -> int:
     parser.add_argument(
         "--out",
         default="",
-        help="Output .xlsx path (default: linkedin_jobs_TIMESTAMP.xlsx in this folder)",
+        help="Output .xlsx path (default: linkedin_jobs.xlsx in this folder)",
     )
     parser.add_argument(
         "--chrome-profile",
@@ -453,9 +545,8 @@ def main() -> int:
     global CHROME_USER_DATA
     CHROME_USER_DATA = CHROME_USER_DATA.parent / "User Data" / args.chrome_profile
 
-    out = Path(args.out) if args.out else Path(__file__).parent / (
-        f"linkedin_jobs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    )
+    # Use fixed filename (not timestamped) to accumulate jobs
+    out = Path(args.out) if args.out else Path(__file__).parent / "linkedin_jobs.xlsx"
 
     print(f"Keywords: {args.keywords}")
     print(f"Location: {args.location} | Posted: {args.date_posted}")
@@ -482,9 +573,10 @@ def main() -> int:
 
     print(f"\nScraped {len(raw_jobs)} jobs")
 
-    # Filter by date
-    filtered_jobs = filter_by_date(raw_jobs, args.date_posted)
-    print(f"After date filter ({args.date_posted}): {len(filtered_jobs)} jobs")
+    # Skip post-scrape date filter - LinkedIn search URL already filters by date (f_TPR param)
+    # Use raw jobs directly
+    filtered_jobs = raw_jobs
+    print(f"Using all scraped jobs (LinkedIn search already filtered by {args.date_posted})")
 
     # Normalize and score
     normalized: list[dict[str, Any]] = []
@@ -496,9 +588,28 @@ def main() -> int:
     best = select_best(normalized, args.min_score, args.top)
     path = write_excel(best, out)
 
+    # Write to Google Sheets using generic writer (controlled by ENABLE_GSHEETS flag at top)
+    gsheet_url = ""
+    if ENABLE_GSHEETS and best:
+        import time
+        time.sleep(3)  # Wait for Chrome profile to release
+        try:
+            gsheet_url = append_to_gsheets(
+                best,
+                spreadsheet_id=GSHEET_ID,
+                gid=GSHEET_GID,
+                chrome_profile=args.chrome_profile,
+                clear_first=False,  # Append to existing data
+            )
+            print(f"Google Sheets updated: {gsheet_url}")
+        except Exception as e:
+            print(f"[WARN] Google Sheets write failed: {e}")
+
     print()
     print(f"Normalized: {len(normalized)} | Matched (>={args.min_score}%): {len(best)}")
     print(f"Excel saved: {path.resolve()}")
+    if gsheet_url:
+        print(f"Google Sheets: {gsheet_url}")
     if best:
         print("\nTop matches:")
         for j in best[:10]:
