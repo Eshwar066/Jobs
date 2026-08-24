@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Open Naukri Jobs</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px;
+      background: #f5f5f5;
+    }
+
+    button {
+      padding: 14px 24px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      background: #0073e6;
+      color: white;
+    }
+
+    button:hover {
+      background: #005bb5;
+    }
+
+    #status {
+      margin-top: 20px;
+      font-size: 15px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>Naukri Job Openings</h2>
+
+  <button onclick="openAllJobs()">
+    Open All 13 Jobs
+  </button>
+
+  <div id="status"></div>
+
+  <script>
+    const jobs = [
+      "https://www.naukri.com/job-listings-react-ui-developer-tata-consultancy-services-hyderabad-pune-bengaluru-6-to-10-years-060826037247",
+      "https://www.naukri.com/job-listings-react-js-developer-quest-global-bengaluru-5-to-8-years-130826031518",
+      "https://www.naukri.com/job-listings-senior-react-developer-evora-noida-pune-bengaluru-6-to-10-years-140826027548",
+      "https://www.naukri.com/job-listings-react-js-developer-cgi-information-systems-and-management-consultants-bengaluru-9-to-12-years-140826914372",
+      "https://www.naukri.com/job-listings-java-developer-with-react-js-angular-shrewd-techlink-services-chennai-bengaluru-6-to-8-years-210526019949",
+      "https://www.naukri.com/job-listings-react-js-developer-experity-global-hr-solutionz-chennai-bengaluru-mumbai-all-areas-8-to-12-years-130826011940",
+      "https://www.naukri.com/job-listings-front-end-developer-react-tredence-bengaluru-6-to-11-years-140826031596",
+      "https://www.naukri.com/job-listings-front-end-developer-ui-developer-moveinsync-technology-solutions-bengaluru-1-to-2-years-130826025790",
+      "https://www.naukri.com/job-listings-react-developer-bodhi-hr-solutions-bengaluru-6-to-11-years-130826033418",
+      "https://www.naukri.com/job-listings-net-react-developer-infosys-limited-bengaluru-1-to-5-years-130826920340",
+      "https://www.naukri.com/job-listings-front-end-developer-s-p-a-enterprise-info-services-bengaluru-6-to-10-years-130826029855",
+      "https://www.naukri.com/job-listings-react-js-developer-inf-2-3-yrs-infosys-hyderabad-chennai-bengaluru-2-to-3-years-110826019037",
+      "https://www.naukri.com/job-listings-react-developer-pan-india-infosys-hyderabad-chennai-bengaluru-5-to-8-years-050826030854",
+
+    ];
+
+    function openAllJobs() {
+      const status = document.getElementById("status");
+
+      jobs.forEach((url, index) => {
+        setTimeout(() => {
+          window.open(url, "_blank");
+        }, index * 300);
+      });
+
+      status.innerHTML =
+        `Attempted to open <b>${jobs.length}</b> Naukri job pages.`;
+    }
+  </script>
+
+</body>
+</html>
