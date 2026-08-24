@@ -100,8 +100,8 @@ MY_TITLES = [
 DEFAULT_KEYWORDS = "React TypeScript Frontend Engineer"
 DEFAULT_LOCATION = "Bengaluru"
 DEFAULT_DATE_POSTED = "24h"
-MIN_MATCH_SCORE = 25
-TOP_N = 40
+MIN_MATCH_SCORE = 1  # Include all jobs (even 1% match)
+TOP_N = 200  # Get more jobs
 
 # Chrome user data directory (Windows default)
 CHROME_USER_DATA = Path.home() / "AppData" / "Local" / "Google" / "Chrome" / "User Data"
@@ -213,6 +213,7 @@ def normalize_job(job: dict[str, Any]) -> dict[str, Any] | None:
         "Posted": job.get("posted", ""),
         "Source": "LinkedIn (Playwright)",
         "Apply link": url,
+        "Easy Apply": "Yes" if job.get("easy_apply") else "No",
     }
 
 
@@ -285,22 +286,23 @@ def write_excel(rows: list[dict[str, Any]], path: Path) -> Path:
         combined_df.to_excel(writer, index=False, sheet_name="Matching jobs")
         ws = writer.sheets["Matching jobs"]
         widths = {
-            "A": 10,
-            "B": 36,
-            "C": 36,
-            "D": 24,
-            "E": 18,
-            "F": 14,
-            "G": 16,
-            "H": 16,
-            "I": 12,
-            "J": 55,
+            "A": 10,      # Match %
+            "B": 36,      # Matched skills
+            "C": 36,      # Job title
+            "D": 24,      # Company
+            "E": 18,      # Location
+            "F": 14,      # Experience
+            "G": 16,      # Salary
+            "H": 16,      # Posted
+            "I": 12,      # Source
+            "J": 55,      # Apply link
+            "K": 12,      # Easy Apply
         }
         for col, w in widths.items():
             ws.column_dimensions[col].width = w
 
         for row_idx in range(2, len(combined_df) + 2):
-            cell = ws.cell(row=row_idx, column=10)
+            cell = ws.cell(row=row_idx, column=10)  # Apply link column
             url = cell.value
             if url and isinstance(url, str) and url.startswith("http"):
                 cell.hyperlink = url
@@ -394,26 +396,24 @@ def scrape_linkedin_jobs(
             overlays.forEach(el => el.remove());
         }""")
 
-        # Scroll to load more jobs - scroll more aggressively
+        # Scroll to load ALL jobs - simpler approach
+        print("  Scrolling to load all jobs...")
         last_height = 0
-        for _ in range(15):  # Scroll more times
+        no_change_count = 0
+        max_scrolls = 20  # Reduced from 50
+        for scroll_num in range(max_scrolls):
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            page.wait_for_timeout(2000)
+            page.wait_for_timeout(2000)  # Reduced from 2500
             new_height = page.evaluate("document.body.scrollHeight")
             if new_height == last_height:
-                # Try clicking "Show more jobs" button if exists
-                show_more = page.query_selector(
-                    "button:has-text('Show more'), "
-                    "button:has-text('Load more'), "
-                    ".jobs-search-results-list__show-more-button, "
-                    "[data-test-show-more-jobs]"
-                )
-                if show_more:
-                    show_more.click()
-                    page.wait_for_timeout(3000)
-                    continue
-                break
+                no_change_count += 1
+                if no_change_count >= 2:  # Stop after 2 no-changes
+                    break
+            else:
+                no_change_count = 0
             last_height = new_height
+            if scroll_num % 5 == 0:
+                print(f"    Scrolled {scroll_num + 1} times")
 
         # Extract job cards - use the data-job-id attribute
         job_cards = page.query_selector_all("[data-job-id]")
@@ -424,7 +424,7 @@ def scrape_linkedin_jobs(
             try:
                 # Click to open job details - use force click to bypass overlay
                 card.click(force=True)
-                page.wait_for_timeout(2000)
+                page.wait_for_timeout(2500)
 
                 # Extract job details from the right panel
                 job_data = {}
@@ -478,8 +478,51 @@ def scrape_linkedin_jobs(
                 )
                 job_data["description"] = desc_elem.inner_text().strip() if desc_elem else ""
 
+                # Check for Easy Apply button (DETECT ONLY - don't click during scraping)
+                easy_apply = False
+                # Easy Apply is a PRIMARY button with "Easy Apply" text
+                # 3-dot menu: class contains "artdeco-dropdown__trigger" or "artdeco-button--muted" or aria-haspopup="true"
+                easy_apply_btn = page.query_selector(
+                    "button[data-control-name='jobdetails_topcard_inapply'], "
+                    "button.jobs-apply-button:has-text('Easy Apply'), "
+                    ".jobs-apply-button--top-card button:has-text('Easy Apply')"
+                )
+                if easy_apply_btn:
+                    # Exclude 3-dot dropdown trigger by checking for specific classes
+                    classes = (easy_apply_btn.get_attribute("class") or "").lower()
+                    aria_label = (easy_apply_btn.get_attribute("aria-label") or "").lower()
+                    btn_text = easy_apply_btn.inner_text().strip().lower()
+
+                    # 3-dot menu has: artdeco-dropdown__trigger, artdeco-button--circle, artdeco-button--muted
+                    # Easy Apply has: artdeco-button--primary, text "Easy Apply"
+                    is_dropdown_trigger = "artdeco-dropdown__trigger" in classes
+                    is_circle_button = "artdeco-button--circle" in classes
+                    is_muted = "artdeco-button--muted" in classes
+                    is_primary = "artdeco-button--primary" in classes
+
+                    # Skip 3-dot menu
+                    if is_dropdown_trigger or is_circle_button or is_muted:
+                        print(f"  [SKIP] 3-dot menu/dropdown (trigger: {is_dropdown_trigger}, circle: {is_circle_button}, muted: {is_muted})")
+                    elif is_primary and "easy apply" in btn_text:
+                        easy_apply = True
+                        print(f"  [EASY APPLY] Found Easy Apply for: {job_data['title'][:40]}")
+
+                job_data["easy_apply"] = easy_apply
+
+                # Job URL
+                job_data["url"] = page.url
+
+                # Description
+                desc_elem = page.query_selector(
+                    ".job-details-jobs-unified-top-card__job-description, "
+                    ".jobs-description__content, "
+                    "#job-details, "
+                    ".jobs-description"
+                )
+                job_data["description"] = desc_elem.inner_text().strip() if desc_elem else ""
+
                 # Debug output
-                print(f"  [DEBUG] title='{job_data['title'][:40]}' company='{job_data['company'][:30]}' posted='{job_data['posted']}'")
+                print(f"  [DEBUG] title='{job_data['title'][:40]}' company='{job_data['company'][:30]}' posted='{job_data['posted']}' easy_apply={easy_apply}")
 
                 # Try to get experience level and salary from description
                 desc_text = job_data["description"].lower()
