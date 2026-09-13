@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Naukri Apply</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app">
+        <header>
+            <h1>Naukri Apply</h1>
+            <div class="version">Automated job applications with AI</div>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+            <button class="tab-btn" data-tab="config">Config</button>
+            <button class="tab-btn" data-tab="env">Env</button>
+            <button class="tab-btn" data-tab="resume">Resume Profile</button>
+            <button class="tab-btn" data-tab="qa">QA Cache</button>
+            <button class="tab-btn" data-tab="logs">Logs</button>
+            <button class="tab-btn" data-tab="guide">Guide</button>
+        </nav>
+
+        <main>
+            <!-- Dashboard Tab -->
+            <section id="dashboard" class="tab-panel active">
+                <div class="card">
+                    <h2>Login Status</h2>
+                    <div id="login-status" class="status">Checking...</div>
+                    <button id="btn-login" class="btn primary">Start Login</button>
+                    <button id="btn-login-success" class="btn secondary" disabled>Login Successful</button>
+                </div>
+
+                <div class="card">
+                    <h2>Search & Apply</h2>
+                    <div class="form-row">
+                        <label>Role: <span id="cfg-role">-</span></label>
+                        <label>Location: <span id="cfg-location">-</span></label>
+                    </div>
+                    <div class="form-row">
+                        <label>Max Applicants: <span id="cfg-applicants">-</span></label>
+                        <label>Max Applications: <span id="cfg-max-apps">-</span></label>
+                    </div>
+                    <button id="btn-search" class="btn primary" disabled>Start Search</button>
+                </div>
+
+                <div class="card">
+                    <h2>Progress</h2>
+                    <div id="progress" class="progress">Ready to start</div>
+                    <div id="progress-bar" class="progress-bar"><div class="progress-fill"></div></div>
+                </div>
+            </section>
+
+            <!-- Config Tab -->
+            <section id="config" class="tab-panel">
+                <div class="card">
+                    <h2>Configuration (config.json)</h2>
+                    <textarea id="config-editor" class="json-editor" spellcheck="false"></textarea>
+                    <button id="btn-save-config" class="btn primary">Save Config</button>
+                    <div id="config-saved" class="saved-msg hidden">Saved!</div>
+                </div>
+            </section>
+
+            <!-- Env Tab -->
+            <section id="env" class="tab-panel">
+                <div class="card">
+                    <h2>Environment Variables (.env)</h2>
+                    <textarea id="env-editor" class="json-editor" spellcheck="false" placeholder="GEMINI_API_KEY=your_key_here"></textarea>
+                    <button id="btn-save-env" class="btn primary">Save Env</button>
+                    <div id="env-saved" class="saved-msg hidden">Saved!</div>
+                </div>
+            </section>
+
+            <!-- Resume Profile Tab -->
+            <section id="resume" class="tab-panel">
+                <div class="card">
+                    <h2>Resume Profile (resume_profile.json)</h2>
+                    <p class="hint">Paste your structured resume JSON here, or run <code>python resume_profile.py --force</code> to generate from PDF.</p>
+                    <textarea id="resume-editor" class="json-editor" spellcheck="false"></textarea>
+                    <button id="btn-save-resume" class="btn primary">Save Resume Profile</button>
+                    <div id="resume-saved" class="saved-msg hidden">Saved!</div>
+                </div>
+            </section>
+
+            <!-- QA Cache Tab -->
+            <section id="qa" class="tab-panel">
+                <div class="card">
+                    <h2>Question/Answer Cache (qa_cache.json)</h2>
+                    <p class="hint">Cached answers to application questions. Edits persist automatically.</p>
+                    <textarea id="qa-editor" class="json-editor" spellcheck="false" readonly></textarea>
+                    <button id="btn-save-qa" class="btn primary" disabled>Save QA Cache</button>
+                    <div id="qa-saved" class="saved-msg hidden">Saved!</div>
+                </div>
+            </section>
+
+            <!-- Logs Tab -->
+            <section id="logs" class="tab-panel">
+                <div class="card">
+                    <div class="logs-header">
+                        <h2>Live Logs</h2>
+                        <button id="btn-ollama-logs" class="btn secondary">Ollama Logs</button>
+                    </div>
+                    <pre id="log-output" class="log-output">Waiting for task to start...</pre>
+                </div>
+            </section>
+
+            <!-- Guide Tab -->
+            <section id="guide" class="tab-panel">
+                <div class="card">
+                    <h2>Quick Start Guide</h2>
+                    <ol class="guide-steps">
+                        <li><strong>Env tab:</strong> Add your <code>GEMINI_API_KEY</code> (or use local LLM with Docker/Ollama).</li>
+                        <li><strong>Config tab:</strong> Set <code>role</code>, <code>location</code>, <code>resume_path</code>, <code>max_applications</code>, etc.</li>
+                        <li><strong>Resume Profile tab:</strong> Paste JSON profile or run <code>python resume_profile.py --force</code>.</li>
+                        <li><strong>Dashboard tab:</strong> Click <strong>Start Login</strong>, sign in to Naukri, then click <strong>Login Successful</strong>.</li>
+                        <li><strong>Dashboard tab:</strong> Click <strong>Start Search</strong> to begin applying.</li>
+                    </ol>
+                    <h3>Local LLM Setup</h3>
+                    <ol class="guide-steps">
+                        <li>Install <a href="https://www.docker.com/products/docker-desktop/" target="_blank">Docker Desktop</a>.</li>
+                        <li>Run <code>docker compose up -d</code> (creates ollama container).</li>
+                        <li>Pull a model: <code>docker exec ollama ollama pull llama3.2:1b</code></li>
+                        <li>In Config, set <code>"llm_provider": "local"</code> and <code>"local_model": "llama3.2:1b"</code>.</li>
+                    </ol>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "applicants": 100,
+  "gemini_model": "gemini-2.5-flash",
+  "headless": false,
+  "keywords_mode": "role",
+  "llm_provider": "gemini",
+  "local_base_url": "http://localhost:11434",
+  "local_model": "llama3.2:1b",
+  "location": "India",
+  "max_applications": 50,
+  "page_load_wait_ms": 3000,
+  "past_24_hours": true,
+  "query_template": "{role} hiring under {applicants} applicants posted in the past 24 hours",
+  "resume_path": "C:\\\\Users\\\\YourName\\\\Documents\\\\resume.pdf",
+  "role": "Python Developer"
+}
