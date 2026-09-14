@@ -12,8 +12,5 @@
   "past_24_hours": true,
   "query_template": "{role} hiring under {applicants} applicants posted in the past 24 hours Easy Apply",
   "resume_path": "C:\\Users\\eshwa\\Downloads\\Eshwar_Sai_React.pdf",
-  "role": "reactjs, TypeScript, Frontend, Python,fastapi, fullstack, Frontend Developer"
+  "role": "reactjs"
 }
-
-
-

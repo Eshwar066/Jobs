@@ -117,8 +117,14 @@ def search_url(keywords, config):
         "k": keywords,
         "l": config.get("location", ""),
     }
+    # Experience filter (e.g., 3 for 3 years)
+    if config.get("experience"):
+        params["experience"] = str(config["experience"])
+    # Job age filter: 1 = last 1 day, 3 = last 3 days, 7 = last 7 days, etc.
+    if config.get("job_age"):
+        params["jobAge"] = str(config["job_age"])
     if config.get("past_24_hours", True):
-        params["postedBy"] = "1"  # Last 24 hours
+        params["postedBy"] = "1"  # Last 24 hours (legacy)
     # Naukri uses different URL structure
     return "https://www.naukri.com/jobs?" + urllib.parse.urlencode(params)
 
@@ -133,6 +139,22 @@ def open_jobs_search(page, keywords, config):
         pass
     page.wait_for_timeout(config.get("page_load_wait_ms", 3000))
     print(f"Jobs URL: {page.url}")
+
+    # Apply "Last 1 day" freshness filter via UI
+    try:
+        # Click the Freshness dropdown
+        freshness_btn = page.locator('button:has-text("Freshness"), [data-testid="freshness-filter"], button:has-text("Posted")').first
+        if freshness_btn.count() and freshness_btn.is_visible():
+            freshness_btn.click()
+            page.wait_for_timeout(500)
+            # Click "Last 1 day" option
+            last_1_day = page.locator('text="Last 1 day", text="Last 24 hours", [data-value="1"]').first
+            if last_1_day.count() and last_1_day.is_visible():
+                last_1_day.click()
+                print("Applied 'Last 1 day' freshness filter")
+                page.wait_for_timeout(1500)
+    except Exception as e:
+        print(f"Could not apply freshness filter via UI: {e}")
 
 
 def hydrate_cards(page, passes=4):
