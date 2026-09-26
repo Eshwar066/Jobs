@@ -10,7 +10,7 @@
   "max_applications": 50,
   "page_load_wait_ms": 3000,
   "past_24_hours": true,
-  "query_template": "{role} hiring under {applicants} applicants posted in the past 24 hours Easy Apply",
+  "query_template": "{role} hiring under {applicants} applicants posted in the past 24 hours",
   "resume_path": "C:\\Users\\eshwa\\Downloads\\Eshwar_Sai_React.pdf",
-  "role": "reactjs"
+  "role": "React.js, React Developer, React Js Developer,"
 }

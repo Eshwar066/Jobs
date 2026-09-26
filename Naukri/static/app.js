@@ -37,6 +37,8 @@ function initTabs() {
 
     // Ollama logs
     document.getElementById("btn-ollama-logs").addEventListener("click", fetchOllamaLogs);
+    document.getElementById("btn-copy-logs").addEventListener("click", copyLogs);
+    document.getElementById("btn-clear-logs").addEventListener("click", clearLogs);
 }
 
 async function checkLoginStatus() {
@@ -352,4 +354,30 @@ async function saveQACache() {
     } catch (e) {
         alert("Invalid JSON or save failed: " + e.message);
     }
+}
+
+function copyLogs() {
+    const el = document.getElementById("log-output");
+    const text = el.textContent || el.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById("btn-copy-logs");
+        const original = btn.textContent;
+        btn.textContent = "Copied!";
+        btn.classList.add("success");
+        setTimeout(() => {
+            btn.textContent = original;
+            btn.classList.remove("success");
+        }, 2000);
+    }).catch(() => {
+        const range = document.createRange();
+        range.selectNode(el);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+        alert("Auto-copy failed. Text is selected - press Ctrl+C to copy.");
+    });
+}
+
+function clearLogs() {
+    const el = document.getElementById("log-output");
+    el.textContent = "";
 }

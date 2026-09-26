@@ -1,0 +1,1 @@
+"""Common utilities for Naukri auto-apply."""

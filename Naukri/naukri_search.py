@@ -1,19 +1,61 @@
-"""Search Naukri jobs and apply using Gemini for form answers."""
+"""
+Naukri auto-apply. Requires session_naukri.json from naukri_login.py.
 
-import argparse
-import json
-import os
-import re
-import sys
+Usage:
+    python naukri_search.py
+
+Stops the ENTIRE run immediately and reports if it hits a CAPTCHA, a login
+prompt, or a rate-limit warning. Never attempts to solve any of those --
+that's the point. Everything else (a bad selector, a question it can't
+answer, a stray page error) is handled per-listing: that one listing is
+skipped and logged, and the run continues.
+"""
+
+import csv
 import time
-import urllib.parse
+from datetime import datetime
+from pathlib import Path
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
-from naukri_apply import apply_to_current_job, dismiss_modal
-from gemini_client import Gemini, GeminiError
-from qa_store import QAStore
-from resume_profile import get_or_build_profile
+from common.profile import Profile
+from common import llm
+from common.qa_store import QAStore
+from common.human_input import ask_user
+
+SESSION_FILE = "naukri_state.json"
+LOG_FILE = "applications_log.csv"
+DEBUG_DIR = Path("debug_screenshots")
+
+STOP_PHRASES = [
+    "too many requests", "unusual activity", "verify you are human",
+    "captcha", "temporarily blocked", "please try again later and reduce",
+    "there was an error while processing your request",
+]
+
+# Questions matching any of these should NEVER be answered by the LLM --
+# these are exact personal facts an LLM could easily hallucinate wrong.
+# Always routed straight to you (and then remembered for next time).
+SENSITIVE_FIELD_HINTS = [
+    "date of birth", "dob", "pan number", "pan card", "aadhar", "aadhaar",
+    "passport", "bank account", "ifsc", "father's name", "father name",
+    "mother's name", "mother name", "marital status", "blood group",
+    "emergency contact", "voter id", "driving licence", "driving license",
+]
+
+# Specific phrases per answer-library key, checked as whole phrases (not
+# single split words) so "current ctc" and "current city" can never collide
+# just because they both start with "current".
+TRIGGER_PHRASES = {
+    "years_experience": ["years of experience", "total experience", "how many years", "work experience"],
+    "notice_period": ["notice period"],
+    "current_ctc": ["current ctc", "current salary", "current compensation", "present ctc", "present salary"],
+    "expected_ctc": ["expected ctc", "expected salary", "expected compensation"],
+    "current_city": ["current city", "current location", "which city", "current place"],
+    "relocate": ["relocate", "relocation", "willing to move"],
+    "night_shift": ["night shift"],
+    "weekend_work": ["weekend"],
+}
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -27,398 +69,676 @@ Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
 window.chrome = { runtime: {} };
 """
 
-# Naukri job list selectors
-JOB_LIST_ITEM_SELECTORS = [
-    "article.jobTuple",
-    "div.jobTuple",
-    "div.srp-jobtuple-wrapper",
-    "article.srp-jobtuple",
-    "div[data-job-id]",
-]
 
-JOB_LIST_CONTAINER_SELECTORS = [
-    "div.list",
-    "div.job-list",
-    ".srp-jobtuple-wrapper",
-]
-
-JOB_TITLE_SELECTORS = [
-    "a.title",
-    "a.jobTitle",
-    ".jobTuple .title",
-    "h2.title a",
-]
-
-JOB_COMPANY_SELECTORS = [
-    "a.subTitle",
-    ".companyName",
-    ".jobTuple .subTitle",
-    "span.companyName",
-]
-
-JOB_LOCATION_SELECTORS = [
-    ".location",
-    ".jobTuple .location",
-    "span.location",
-]
-
-APPLICANT_COUNT_SELECTORS = [
-    ".applicantCount",
-    ".jobTuple .applicantCount",
-    "span.applicantCount",
-]
-
-APPLY_BUTTON_SELECTORS = [
-    'button:has-text("Apply")',
-    'a:has-text("Apply")',
-    ".apply-button",
-    "button.apply-btn",
-]
+def log_row(row: list):
+    new_file = not Path(LOG_FILE).exists()
+    with open(LOG_FILE, "a", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        if new_file:
+            w.writerow(["timestamp", "source", "title", "company", "status", "reason"])
+        w.writerow(row)
 
 
-def load_config(path="config.json"):
-    if not os.path.exists(path):
-        print(f"{path} not found. Create it first.")
-        sys.exit(1)
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+def passes_filters(card: dict, profile: Profile, role: str) -> tuple[bool, str]:
+    title = (card.get("title") or "").lower()
+    company = (card.get("company") or "").lower()
+
+    required_keywords = profile.data.get("role_required_keywords", {}).get(role)
+    if not required_keywords:
+        generic = {"engineer", "developer", "administrator", "analyst", "senior", "junior", "lead"}
+        required_keywords = [w for w in role.lower().split() if w not in generic]
+    if required_keywords and not any(kw.lower() in title for kw in required_keywords):
+        return False, f"title doesn't match role keywords ({role})"
+
+    for excl in profile.company_exclude:
+        if excl.lower() in company:
+            return False, f"company excluded ({excl})"
+
+    if profile.company_include_only:
+        if not any(inc.lower() in company for inc in profile.company_include_only):
+            return False, "not in include-only list"
+
+    exp_text = card.get("exp") or ""
+    digits = [int(s) for s in exp_text.replace("Yrs", "").replace("yrs", "")
+              .replace("-", " ").split() if s.isdigit()]
+    if len(digits) >= 2:
+        lo, hi = digits[0], digits[-1]
+        if hi < profile.seniority_floor_years or lo > profile.seniority_ceiling_years:
+            return False, f"experience range mismatch ({exp_text})"
+
+    return True, ""
 
 
-def first_visible(scope, selectors, limit=10):
-    for sel in selectors:
-        locs = scope.locator(sel)
-        try:
-            count = locs.count()
-        except Exception:
-            continue
-        for i in range(min(count, limit)):
-            loc = locs.nth(i)
-            try:
-                if loc.is_visible():
-                    return loc
-            except Exception:
-                continue
+def safe_evaluate(page, script, arg=None, default=None):
+    """Runs page.evaluate but never lets a destroyed-context or stray JS error
+    crash the whole run -- returns `default` instead. Naukri's own chat widget
+    and SPA navigation can tear down the page mid-script, which raises
+    Playwright's 'Execution context was destroyed' error; that's expected
+    occasionally, not something to crash over."""
+    try:
+        return page.evaluate(script, arg) if arg is not None else page.evaluate(script)
+    except Exception as e:
+        print(f"  (page.evaluate failed, continuing anyway: {e})")
+        return default
+
+
+def enumerate_cards(page):
+    """Reads real job cards off the search results page. Card wrapper is
+    div.srp-jobtuple-wrapper with a data-job-id attribute -- that attribute
+    is the reliable marker; filter/promo widgets on the same page don't
+    have it."""
+    return safe_evaluate(page, """
+        () => Array.from(document.querySelectorAll('.srp-jobtuple-wrapper[data-job-id]'))
+          .map((c, i) => ({
+            i,
+            jobId: c.getAttribute('data-job-id'),
+            title: c.querySelector('a.title')?.innerText.trim(),
+            href: c.querySelector('a.title')?.href,
+            company: c.querySelector('a.comp-name, .comp-dtls-wrap a')?.innerText.trim(),
+            exp: c.querySelector('.expwdth')?.innerText,
+            location: c.querySelector('.locWdth')?.innerText,
+          }))
+          .filter(c => c.title && c.href)
+    """, default=[]) or []
+
+
+def check_apply_button(page) -> str:
+    """Returns 'external', 'native', or 'none' based on the detail page's apply button."""
+    if page.query_selector('#company-site-button'):
+        return "external"
+    if page.query_selector('#apply-button'):
+        return "native"
+    return "none"
+
+
+def _wait_send_enabled(page, timeout_ms: int = 4000) -> bool:
+    """Polls until the Send control's wrapper no longer has Naukri's
+    'disabled' class. Confirmed real markup: <div id="sendMsg__..." class="send disabled">
+    wraps the clickable <div class="sendMsg">Save</div>. It starts disabled and only
+    becomes clickable after Naukri's frontend registers your selection and
+    re-renders -- clicking Send before that happens is a silent no-op."""
+    waited = 0
+    step = 300
+    while waited <= timeout_ms:
+        enabled = safe_evaluate(page, """
+            () => {
+                const wrapper = document.querySelector('[id^="sendMsg__"]');
+                if (!wrapper) return true;  // no wrapper found -- don't block forever on a guess
+                return !wrapper.className.includes('disabled');
+            }
+        """, default=True)
+        if enabled:
+            return True
+        time.sleep(step / 1000)
+        waited += step
+    return False
+
+
+def _js_click_send(page) -> bool:
+    """Clicks Naukri's screening-chat Send/Save control -- a <div class="sendMsg">,
+    not a <button>. A JS click bypasses the chatbot_Overlay div that sits
+    visually on top of it and blocks Playwright's normal .click()."""
+    return safe_evaluate(page, """
+        () => {
+            const el = document.querySelector('.sendMsg');
+            if (!el) return false;
+            el.click();
+            return true;
+        }
+    """, default=False)
+
+
+def click_native_apply(page) -> bool:
+    """Clicks the Apply button and returns whether the click actually
+    registered, so the caller can tell 'click failed' apart from 'clicked
+    fine, just couldn't confirm success afterward'."""
+    return bool(safe_evaluate(page, """
+        () => {
+            const btn = document.getElementById('apply-button');
+            if (btn) { btn.click(); return true; }
+            return false;
+        }
+    """, default=False))
+
+
+def page_has_stop_signal(page) -> str | None:
+    try:
+        text = page.inner_text("body").lower()
+    except Exception:
+        return None  # page mid-navigation -- checked again on the next loop iteration
+    for phrase in STOP_PHRASES:
+        if phrase in text:
+            return phrase
+    if "login" in page.url and "naukri.com/nlogin" in page.url:
+        return "session expired / login prompt"
     return None
 
 
-def text_of(page, selectors):
-    loc = first_visible(page, selectors, limit=3)
-    if not loc:
-        return ""
+def _save_debug_screenshot(page, job_title: str) -> str:
+    """Saves a screenshot when the outcome is uncertain, so it can be looked
+    at afterward instead of needing to catch it live. Also saves the page's
+    HTML for the same reason -- a screenshot shows what it looked like, the
+    HTML shows exactly why the confirmation-text check missed it."""
+    DEBUG_DIR.mkdir(exist_ok=True)
+    safe_name = "".join(c if c.isalnum() else "_" for c in (job_title or "unknown"))[:60]
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    png_path = DEBUG_DIR / f"{safe_name}_{timestamp}.png"
+    html_path = DEBUG_DIR / f"{safe_name}_{timestamp}.html"
     try:
-        return (loc.inner_text() or "").strip()
-    except Exception:
-        return ""
-
-
-def search_url(keywords, config):
-    """Build a Naukri job search URL."""
-    params = {
-        "k": keywords,
-        "l": config.get("location", ""),
-    }
-    # Experience filter (e.g., 3 for 3 years)
-    if config.get("experience"):
-        params["experience"] = str(config["experience"])
-    # Job age filter: 1 = last 1 day, 3 = last 3 days, 7 = last 7 days, etc.
-    if config.get("job_age"):
-        params["jobAge"] = str(config["job_age"])
-    if config.get("past_24_hours", True):
-        params["postedBy"] = "1"  # Last 24 hours (legacy)
-    # Naukri uses different URL structure
-    return "https://www.naukri.com/jobs?" + urllib.parse.urlencode(params)
-
-
-def open_jobs_search(page, keywords, config):
-    url = search_url(keywords, config)
-    print(f"Opening: {url}")
-    page.goto(url)
+        page.screenshot(path=str(png_path))
+    except Exception as e:
+        print(f"  (couldn't save debug screenshot: {e})")
     try:
-        page.wait_for_load_state("networkidle", timeout=20000)
+        html_path.write_text(page.content())
+    except Exception as e:
+        print(f"  (couldn't save debug HTML: {e})")
+    return str(png_path)
+
+
+def verify_applied(page) -> bool:
+    """Best-effort check that the application actually went through. Confirmed
+    real pattern: Naukri shows a green checkmark panel reading
+    'Applied to "<job title>"' a few seconds after submit -- checking for
+    that prefix specifically, plus a short wait since it isn't instant."""
+    try:
+        page.wait_for_timeout(3000)  # the confirmation panel takes a moment to appear
     except Exception:
         pass
-    page.wait_for_timeout(config.get("page_load_wait_ms", 3000))
-    print(f"Jobs URL: {page.url}")
-
-    # Apply "Last 1 day" freshness filter via UI
     try:
-        # Click the Freshness dropdown
-        freshness_btn = page.locator('button:has-text("Freshness"), [data-testid="freshness-filter"], button:has-text("Posted")').first
-        if freshness_btn.count() and freshness_btn.is_visible():
-            freshness_btn.click()
-            page.wait_for_timeout(500)
-            # Click "Last 1 day" option
-            last_1_day = page.locator('text="Last 1 day", text="Last 24 hours", [data-value="1"]').first
-            if last_1_day.count() and last_1_day.is_visible():
-                last_1_day.click()
-                print("Applied 'Last 1 day' freshness filter")
-                page.wait_for_timeout(1500)
-    except Exception as e:
-        print(f"Could not apply freshness filter via UI: {e}")
-
-
-def hydrate_cards(page, passes=4):
-    """Scroll the results list so occluded cards render, then report the count."""
-    container = first_visible(page, JOB_LIST_CONTAINER_SELECTORS, limit=2)
-    last = 0
-    for _ in range(passes):
-        cards = job_cards(page)
-        count = cards.count() if cards else 0
-        if count and count == last:
-            break
-        last = count
-        if container:
-            try:
-                container.evaluate("el => el.scrollTo(0, el.scrollHeight)")
-            except Exception:
-                page.mouse.wheel(0, 1500)
-        else:
-            page.mouse.wheel(0, 1500)
-        page.wait_for_timeout(1200)
-
-    if container:
+        text = page.inner_text("body").lower()
+    except Exception:
+        return False
+    success_phrases = [
+        'applied to "', "application sent", "successfully applied",
+        "you have applied", "applied successfully",
+    ]
+    if any(p in text for p in success_phrases):
+        return True
+    btn = page.query_selector('#apply-button')
+    if btn:
         try:
-            container.evaluate("el => el.scrollTo(0, 0)")
-        except Exception:
-            pass
-    page.wait_for_timeout(800)
-    cards = job_cards(page)
-    return cards.count() if cards else 0
-
-
-def job_cards(page):
-    for sel in JOB_LIST_ITEM_SELECTORS:
-        locs = page.locator(sel)
-        try:
-            if locs.count() > 0:
-                return locs
-        except Exception:
-            continue
-    return None
-
-
-def applicant_count(page):
-    """Parse the applicant count from the job card."""
-    for sel in APPLICANT_COUNT_SELECTORS:
-        loc = page.locator(sel)
-        try:
-            for i in range(min(loc.count(), 3)):
-                text = (loc.nth(i).inner_text() or "")
-                match = re.search(r"(\d+)\s*applicant", text, re.I)
-                if match:
-                    return int(match.group(1))
-        except Exception:
-            continue
-    return None
-
-
-def job_context(page):
-    return {
-        "title": text_of(page, JOB_TITLE_SELECTORS),
-        "company": text_of(page, JOB_COMPANY_SELECTORS),
-        "location": text_of(page, JOB_LOCATION_SELECTORS),
-        "url": page.url,
-    }
-
-
-def already_applied(page):
-    for sel in [
-        'button:has-text("Applied")',
-        'a:has-text("Applied")',
-        '.applied',
-        'span:has-text("Applied")',
-    ]:
-        loc = page.locator(sel).first
-        try:
-            if loc.count() and loc.is_visible():
+            label = btn.inner_text().strip().lower()
+            if label and label != "apply":
                 return True
         except Exception:
-            continue
+            pass
     return False
 
 
-def find_apply_button(page):
-    """Find the apply button on the job details page."""
-    candidates = [
-        page.get_by_role("button", name=re.compile(r"Apply", re.I)),
-        page.locator('a:has-text("Apply")'),
-        page.locator("button.apply-button"),
-        page.locator(".apply-btn"),
+class StopRun(Exception):
+    """Something genuinely dangerous or account-risking happened -- CAPTCHA,
+    login expired, rate-limit warning. Halts the entire run immediately."""
+
+
+class SkipJob(Exception):
+    """This one listing can't be completed -- logs it and moves to the next
+    listing. Does NOT stop the run."""
+
+
+def _get_options(page) -> list[dict]:
+    """Reads radio/checkbox options in the chat drawer, with their visible labels."""
+    return safe_evaluate(page, """
+        () => {
+            const root = document.querySelector('[class*="chatbot_Drawer"]') || document;
+            const inputs = Array.from(root.querySelectorAll('input[type=radio], input[type=checkbox]'));
+            return inputs.map((el, idx) => {
+                let label = '';
+                if (el.id) {
+                    const lbl = root.querySelector(`label[for="${el.id}"]`);
+                    if (lbl) label = lbl.innerText.trim();
+                }
+                if (!label) {
+                    const parentLabel = el.closest('label');
+                    if (parentLabel) label = parentLabel.innerText.trim();
+                }
+                if (!label && el.nextElementSibling) {
+                    label = (el.nextElementSibling.innerText || '').trim();
+                }
+                return {idx, label, type: el.type};
+            });
+        }
+    """, default=[]) or []
+
+
+def _click_option(page, idx: int) -> bool:
+    return safe_evaluate(page, """
+        (idx) => {
+            const root = document.querySelector('[class*="chatbot_Drawer"]') || document;
+            const inputs = Array.from(root.querySelectorAll('input[type=radio], input[type=checkbox]'));
+            if (inputs[idx]) { inputs[idx].click(); return true; }
+            return false;
+        }
+    """, arg=idx, default=False)
+
+
+def _is_sensitive_field(question: str) -> bool:
+    lower_q = question.lower()
+    return any(hint in lower_q for hint in SENSITIVE_FIELD_HINTS)
+
+
+def _auto_decide_option(question: str, options: list[dict], profile: Profile) -> dict | None:
+    """Tries to pick the correct option using known profile facts, for
+    common Yes/No-style questions. Returns None (never guesses) if nothing
+    in the profile clearly answers this specific question -- caller falls
+    back to asking you directly rather than risk a wrong click."""
+    lower_q = question.lower()
+    by_label = {o["idx"]: o["label"].strip().lower() for o in options}
+
+    def find_by_text(text: str):
+        for idx, label in by_label.items():
+            if label == text.lower():
+                return next(o for o in options if o["idx"] == idx)
+        return None
+
+    rules = [
+        (["relocate", "relocation", "willing to move"],
+         "Yes" if profile.data.get("relocate_cities") else "No"),
+        (["night shift"], "Yes" if profile.data.get("night_shift_ok") else "No"),
+        (["weekend"], "Yes" if profile.data.get("weekend_ok") else "No"),
+        (["immediately available", "immediate joiner"],
+         "Yes" if profile.data.get("immediately_available") else "No"),
+        (["currently employed", "currently working"],
+         "Yes" if profile.data.get("current_employer") else "No"),
     ]
-    for locs in candidates:
-        try:
-            count = locs.count()
-        except Exception:
-            continue
-        for i in range(min(count, 5)):
-            loc = locs.nth(i)
-            try:
-                if loc.is_visible() and loc.is_enabled():
-                    return loc
-            except Exception:
-                continue
+    for triggers, desired in rules:
+        if any(t in lower_q for t in triggers):
+            match = find_by_text(desired)
+            if match:
+                return match
     return None
 
 
-def click_apply(page, timeout=20000):
-    start = time.time()
-    while (time.time() - start) * 1000 < timeout:
-        loc = find_apply_button(page)
-        if loc:
-            loc.scroll_into_view_if_needed()
-            try:
-                loc.click()
-            except Exception:
-                loc.evaluate("el => el.click()")
+def _handle_options_question(page, question: str, profile: Profile, timeout_s: int, qa_store: QAStore) -> bool:
+    """Returns True if handled (clicked something), raises SkipJob otherwise."""
+    options = _get_options(page)
+    if not options:
+        return False
+
+    option_labels = [o["label"].strip() for o in options]
+    # Determine field type from option input types
+    input_types = {o["type"] for o in options}
+    field_type = "radio" if "radio" in input_types else ("checkbox" if "checkbox" in input_types else "select")
+
+    stored = qa_store.get(question, field_type=field_type, options=option_labels)
+    if stored:
+        for opt in options:
+            if opt["label"].strip().lower() == stored.strip().lower():
+                _click_option(page, opt["idx"])
+                print(f"  (used a remembered answer for: {question[:80]})")
+                return True
+
+    auto = _auto_decide_option(question, options, profile)
+    if auto:
+        _click_option(page, auto["idx"])
+        qa_store.put(question, auto["label"], field_type=field_type, options=option_labels)
+        print(f"  (auto-picked '{auto['label']}' from your profile for: {question[:80]})")
+        return True
+
+    options_text = "\n".join(f"  {o['idx']}: {o['label']}" for o in options)
+    response = ask_user(
+        f"Screening question needs a choice:\n{question}\n\nOptions:\n{options_text}\n"
+        f"Type the number of your choice (or numbers separated by commas for multi-select):",
+        timeout_seconds=timeout_s,
+    )
+    if response is None:
+        raise SkipJob(f"no response for options question: {question[:120]}")
+
+    chosen_raw = [r.strip() for r in response.split(",") if r.strip()]
+    matches = []
+    for r in chosen_raw:
+        try:
+            idx = int(r)
+            match = next((o for o in options if o["idx"] == idx), None)
+        except ValueError:
+            match = next((o for o in options if o["label"].strip().lower() == r.lower()), None)
+        if match:
+            matches.append(match)
+
+    if not matches:
+        raise SkipJob(f"couldn't match your response '{response}' to an option: {question[:120]}")
+
+    for match in matches:
+        _click_option(page, match["idx"])
+    answer_to_store = matches[0]["label"] if len(matches) == 1 else response
+    qa_store.put(question, answer_to_store, field_type=field_type, options=option_labels)
+    return True
+
+
+# If the chat's last message is one of these, it's wrapping up rather than
+# asking something new -- stop cleanly instead of trying to draft an answer
+# into a box that may no longer exist.
+COMPLETION_PHRASES = [
+    "thank you", "thanks for your response", "thanks for your time",
+    "we will get back", "responses have been recorded", "no further questions",
+    "application submitted", "that's all", "all the information we need",
+]
+
+
+def _is_completion_message(text: str) -> bool:
+    lower = text.lower()
+    return any(p in lower for p in COMPLETION_PHRASES)
+
+
+def _has_answerable_input(page, timeout_ms: int = 3000) -> bool:
+    """Checks for a text box or radio/checkbox to answer. Polls for up to
+    timeout_ms instead of checking once -- the previous single-check version
+    could wrongly conclude "nothing to answer" if the next question's input
+    just hadn't rendered yet after the previous Save click, causing it to
+    skip clicking Save on what was actually still a real question."""
+    waited = 0
+    step = 300
+    while waited <= timeout_ms:
+        found = safe_evaluate(page, """
+            () => !!(document.querySelector('[id^="userInput"], [contenteditable="true"]') ||
+                     document.querySelector('input[type=radio], input[type=checkbox]'))
+        """, default=False)
+        if found:
             return True
-        page.wait_for_timeout(500)
+        time.sleep(step / 1000)
+        waited += step
     return False
 
 
-def run(config):
-    if config.get("keywords_mode", "role") == "template":
-        keywords = config["query_template"].format(
-            role=config["role"], applicants=config["applicants"]
-        )
-    else:
-        keywords = config["role"]
-
-    max_applicants = int(config.get("applicants") or 0) or None
-    max_applications = int(config.get("max_applications", 5))
-    resume_path = config.get("resume_path")
-    if not resume_path:
-        print("Set 'resume_path' in config.json to your resume PDF.")
-        sys.exit(1)
-
-    gemini = Gemini(config)
-    profile = get_or_build_profile(resume_path, gemini=gemini)
-    store = QAStore()
-    print(f"Loaded {len(store)} cached question/answer pair(s).")
-
-    if not os.path.exists("naukri_state.json"):
-        print("naukri_state.json not found. Run naukri_login.py first.")
-        sys.exit(1)
-
-    with sync_playwright() as p:
-        launch_kwargs = {
-            "headless": bool(config.get("headless", False)),
-            "args": [
-                "--disable-blink-features=AutomationControlled",
-                "--disable-features=IsolateOrigins,site-per-process",
-                "--disable-infobars",
-                "--no-first-run",
-                "--no-default-browser-check",
-            ],
+def _read_filled_text(page) -> str:
+    return safe_evaluate(page, """
+        () => {
+            const ed = document.querySelector('[id^="userInput"], [contenteditable="true"]');
+            return ed ? (ed.innerText || ed.textContent || '').trim() : '';
         }
-        try:
-            browser = p.chromium.launch(channel="chrome", **launch_kwargs)
-        except Exception:
-            browser = p.chromium.launch(**launch_kwargs)
+    """, default="") or ""
 
-        context = browser.new_context(
-            storage_state="naukri_state.json",
-            user_agent=USER_AGENT,
-            viewport={"width": 1440, "height": 900},
+
+def _fill_freetext(page, text: str):
+    safe_evaluate(page, """
+        (text) => {
+            const ed = document.querySelector('[id^="userInput"], [contenteditable="true"]');
+            if (!ed) return;
+            ed.focus();
+            document.execCommand('insertText', false, text);
+        }
+    """, arg=text)
+
+
+def _fill_and_send(page, text: str, question: str):
+    """Fills the answer box, VERIFIES the text actually landed before
+    clicking Send, then sends. This is the fix for answers going through
+    blank: previously Send could fire even if the fill silently failed
+    (a timing hiccup, or the box wasn't there), which is what produces
+    Naukri's "incomplete information" rejection on the final application."""
+    _fill_freetext(page, text)
+    time.sleep(0.4)
+    filled = _read_filled_text(page)
+    if not filled:
+        _fill_freetext(page, text)  # one retry -- could be a focus/timing hiccup
+        time.sleep(0.6)
+        filled = _read_filled_text(page)
+    if not filled:
+        raise SkipJob(f"couldn't confirm the answer registered before sending: {question[:120]}")
+    _wait_send_enabled(page)  # same disabled-until-registered pattern as the options branch
+    _js_click_send(page)
+    time.sleep(2.0)  # give Naukri's backend a moment to actually save it
+
+
+def answer_screening_chat(page, profile: Profile, job_context: str, timeout_s: int, qa_store: QAStore):
+    """Handles Naukri's post-apply screening chat drawer, if it appears."""
+    answers = profile.answer_library()
+    try:
+        # Broadened on purpose: a pure radio/checkbox question has no text
+        # box at all, so waiting only for contenteditable was causing the
+        # function to give up immediately on those questions, thinking
+        # there was no screening chat when there actually was one.
+        page.wait_for_selector(
+            '[contenteditable="true"], [contenteditable=""], '
+            'input[type=radio], input[type=checkbox], .botMsg',
+            timeout=4000,
         )
-        context.add_init_script(STEALTH_SCRIPT)
+    except PWTimeout:
+        return  # no screening chat for this listing
+
+    for _ in range(15):
+        stop = page_has_stop_signal(page)
+        if stop:
+            raise StopRun(f"stop signal during screening chat: {stop}")
+
+        bubbles = page.query_selector_all('.botMsg')
+        if not bubbles:
+            break
+        try:
+            question = bubbles[-1].inner_text().strip()
+        except Exception:
+            break  # page likely navigated away mid-read; treat as chat finished
+        if not question:
+            break
+
+        if _is_completion_message(question):
+            time.sleep(1.5)  # let the "Applied" confirmation redirect begin before we check for it
+            break  # chat is wrapping up, not asking a new question
+
+        if not _has_answerable_input(page):
+            break  # nothing to fill or click here -- informational message only
+
+        options = _get_options(page)
+        if options:
+            _handle_options_question(page, question, profile, timeout_s, qa_store)
+            if not _wait_send_enabled(page):
+                raise SkipJob(f"Send button stayed disabled after selecting an option "
+                               f"(selection may not have registered): {question[:120]}")
+            _js_click_send(page)
+            time.sleep(2.0)
+            continue
+
+        # Freetext question - detect field type from input
+        field_type = "text"
+        try:
+            has_textarea = page.query_selector('[contenteditable="true"]') is not None
+            if has_textarea:
+                field_type = "textarea"
+        except Exception:
+            pass
+
+        stored = qa_store.get(question, field_type=field_type)
+        if stored:
+            _fill_and_send(page, stored, question)
+            print(f"  (used a remembered answer for: {question[:80]})")
+            continue
+
+        lower_q = question.lower()
+        answered = False
+        for key, phrases in TRIGGER_PHRASES.items():
+            if key not in answers:
+                continue
+            if any(phrase in lower_q for phrase in phrases):
+                _fill_and_send(page, str(answers[key]), question)
+                qa_store.put(question, str(answers[key]), field_type=field_type)
+                answered = True
+                break
+
+        if answered:
+            continue
+
+        if _is_sensitive_field(question):
+            response = ask_user(f"Screening question (personal detail):\n{question}", timeout_seconds=timeout_s)
+            if response is None:
+                raise SkipJob(f"no response for sensitive field: {question[:120]}")
+            _fill_and_send(page, response, question)
+            print(f"  (caching sensitive field answer: {question[:60]})")
+            qa_store.put(question, response, field_type=field_type)
+            continue
+
+        draft = llm.draft_answer(question, profile.data, job_context)
+        if draft.startswith("[NEEDS_HUMAN_INPUT"):
+            response = ask_user(f"Screening question (AI couldn't answer from your profile):\n{question}",
+                                 timeout_seconds=timeout_s)
+            if response is None:
+                raise SkipJob(f"no response for: {question[:120]}")
+            _fill_and_send(page, response, question)
+            qa_store.put(question, response, field_type=field_type)
+        else:
+            _fill_and_send(page, draft, question)
+            qa_store.put(question, draft, field_type=field_type)
+
+
+def run():
+    profile = Profile.load()
+    if not Path(SESSION_FILE).exists():
+        raise SystemExit(f"{SESSION_FILE} not found. Run: python naukri_login.py")
+
+    qa_store = QAStore()
+
+    human_timeout = profile.data.get("human_input_timeout_seconds", 120)
+    max_pages = profile.data.get("max_pages_per_role", 5)
+
+    applied = 0
+    with sync_playwright() as p:
+        browser_mode = profile.data.get("browser_mode", "visible")
+        if browser_mode == "headless":
+            browser = p.chromium.launch(headless=True, slow_mo=150)
+        elif browser_mode == "minimized":
+            browser = p.chromium.launch(headless=False, slow_mo=150, args=["--start-minimized"])
+        else:
+            browser = p.chromium.launch(headless=False, slow_mo=150)
+        context = browser.new_context(storage_state=SESSION_FILE)
         page = context.new_page()
 
-        open_jobs_search(page, keywords, config)
-
-        total = hydrate_cards(page)
-        print(f"{total} job card(s) on this page.")
-        if not total:
-            page.screenshot(path="error_no_cards.png", full_page=True)
-            print("No cards found. Saved error_no_cards.png")
-
-        applied = 0
-        skipped = 0
-
-        for i in range(total):
-            if applied >= max_applications:
+        for role in profile.target_roles:
+            if applied >= profile.stop_after_n_applications:
                 break
 
-            cards = job_cards(page)
-            if not cards or i >= cards.count():
+            slug = role.lower().replace(" ", "-")
+            exp_param = int(profile.total_experience_years)
+            seen_job_ids = set()
+            stopped_entirely = False
+
+            for page_no in range(1, max_pages + 1):
+                if applied >= profile.stop_after_n_applications:
+                    break
+
+                # Confirmed pattern: Naukri appends "-N" directly to the slug
+                # for page N (page 1 has no suffix), e.g.
+                # azure-data-engineer-jobs-2 for page 2.
+                page_suffix = "" if page_no == 1 else f"-{page_no}"
+                url = (
+                    f"https://www.naukri.com/{slug}-jobs{page_suffix}"
+                    f"?experience={exp_param}"
+                    f"&jobAge={profile.job_freshness_days}"
+                )
+                print(f"\n--- Searching: {role}, page {page_no} ({url}) ---")
+                try:
+                    page.goto(url)
+                    page.wait_for_selector('.srp-jobtuple-wrapper[data-job-id]', timeout=10000)
+                except PWTimeout:
+                    pass
+                except Exception as e:
+                    print(f"  (navigation error, treating as end of results for this role: {e})")
+                    break
+                time.sleep(1)
+
+                stop = page_has_stop_signal(page)
+                if stop:
+                    print(f"STOPPING: {stop}")
+                    log_row([datetime.now(), "naukri", "-", "-", "stopped", stop])
+                    stopped_entirely = True
+                    break
+
+                cards = enumerate_cards(page)
+                new_cards = [c for c in cards if c.get("jobId") not in seen_job_ids]
+                print(f"Found {len(cards)} job cards ({len(new_cards)} new) on page {page_no}.")
+
+                if not new_cards:
+                    print("No new listings on this page -- treating as the last page for this role.")
+                    break
+
+                for card in new_cards:
+                    seen_job_ids.add(card.get("jobId"))
+                    if applied >= profile.stop_after_n_applications:
+                        break
+
+                    ok, reason = passes_filters(card, profile, role)
+                    if not ok:
+                        log_row([datetime.now(), "naukri", card.get("title"),
+                                  card.get("company"), "skipped", reason])
+                        print(f"Skipped: {card.get('title')} @ {card.get('company')} -- {reason}")
+                        continue
+
+                    try:
+                        page.goto(card["href"])
+                        time.sleep(2)
+
+                        stop = page_has_stop_signal(page)
+                        if stop:
+                            raise StopRun(f"stop signal: {stop}")
+
+                        apply_state = check_apply_button(page)
+                        if apply_state == "external":
+                            log_row([datetime.now(), "naukri", card.get("title"),
+                                      card.get("company"), "skipped", "external apply"])
+                            print(f"Skipped: {card.get('title')} @ {card.get('company')} -- external apply")
+                            continue
+                        if apply_state == "none":
+                            log_row([datetime.now(), "naukri", card.get("title"),
+                                      card.get("company"), "skipped", "no apply button found"])
+                            print(f"Skipped: {card.get('title')} @ {card.get('company')} -- no apply button found")
+                            continue
+
+                        clicked = click_native_apply(page)
+                        if not clicked:
+                            log_row([datetime.now(), "naukri", card.get("title"),
+                                      card.get("company"), "skipped", "apply button click didn't register"])
+                            print(f"Skipped: {card.get('title')} @ {card.get('company')} -- apply click didn't register")
+                            continue
+                        time.sleep(2)
+
+                        answer_screening_chat(page, profile, f"{card.get('title')} at {card.get('company')}",
+                                               human_timeout, qa_store)
+                        time.sleep(1.5)
+
+                        if verify_applied(page):
+                            applied += 1
+                            log_row([datetime.now(), "naukri", card.get("title"),
+                                      card.get("company"), "applied", ""])
+                            print(f"Applied: {card.get('title')} @ {card.get('company')} ({applied} total)")
+                        else:
+                            shot_path = _save_debug_screenshot(page, card.get("title"))
+                            log_row([datetime.now(), "naukri", card.get("title"),
+                                      card.get("company"), "uncertain",
+                                      f"couldn't confirm submission -- screenshot saved to {shot_path}"])
+                            print(f"UNCERTAIN: {card.get('title')} @ {card.get('company')} -- "
+                                  f"couldn't confirm the application actually went through. Check it manually.")
+
+                    except SkipJob as e:
+                        log_row([datetime.now(), "naukri", card.get("title"),
+                                  card.get("company"), "skipped", str(e)])
+                        print(f"Skipped: {card.get('title')} @ {card.get('company')} -- {e}")
+                        continue
+
+                    except StopRun as e:
+                        print(f"STOPPING: {e}")
+                        log_row([datetime.now(), "naukri", card.get("title"),
+                                  card.get("company"), "stopped", str(e)])
+                        browser.close()
+                        return
+
+                    except Exception as e:
+                        # Anything unexpected (stray Playwright errors, torn-down
+                        # page contexts, etc.) -- log it and move to the next
+                        # listing instead of crashing the whole run.
+                        log_row([datetime.now(), "naukri", card.get("title"),
+                                  card.get("company"), "skipped", f"unexpected error: {e}"])
+                        print(f"Skipped (unexpected error): {card.get('title')} @ {card.get('company')} -- {e}")
+                        continue
+
+                    time.sleep(profile.pace_seconds_between_actions)
+
+                if stopped_entirely:
+                    break
+
+            if stopped_entirely:
                 break
 
-            card = cards.nth(i)
-            try:
-                card.scroll_into_view_if_needed()
-                page.wait_for_timeout(500)
-                card.click()
-            except Exception as e:
-                print(f"[{i + 1}] could not open card: {e}")
-                continue
-
-            page.wait_for_timeout(2500)
-            ctx = job_context(page)
-            count = applicant_count(page)
-            label = f"{count} applicants" if count is not None else "applicant count unknown"
-            print(f"\n[{i + 1}/{total}] {ctx['title']} @ {ctx['company']} ({label})")
-
-            if max_applicants and count is not None and count > max_applicants:
-                print(f"  Over the {max_applicants}-applicant cap; skipping.")
-                skipped += 1
-                continue
-
-            if already_applied(page):
-                print("  Already applied; skipping.")
-                skipped += 1
-                continue
-
-            if not click_apply(page, timeout=8000):
-                print("  No Apply button; skipping.")
-                skipped += 1
-                continue
-
-            try:
-                sent = apply_to_current_job(page, gemini, profile, ctx, store=store)
-            except GeminiError:
-                raise
-            except Exception as e:
-                print(f"  [error] {e}")
-                page.screenshot(path=f"error_apply_{i + 1}.png")
-                sent = False
-
-            if sent:
-                applied += 1
-                print(f"  Applied ({applied}/{max_applications}).")
-            else:
-                skipped += 1
-                print("  Not submitted; moving on.")
-                dismiss_modal(page)
-
-            page.wait_for_timeout(2000)
-            # Go back to job list
-            try:
-                page.go_back()
-                page.wait_for_timeout(1500)
-            except Exception:
-                pass
-
-        print(f"\nDone. Applied to {applied} job(s), skipped {skipped}.")
-        context.close()
         browser.close()
 
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("role", nargs="?", help="Override config.json role")
-    parser.add_argument("applicants", nargs="?", help="Override config.json applicants")
-    parser.add_argument("--max", type=int, help="Override max_applications")
-    args = parser.parse_args()
-
-    config = load_config()
-    if args.role:
-        config["role"] = args.role
-    if args.applicants:
-        config["applicants"] = args.applicants
-    if args.max:
-        config["max_applications"] = args.max
-
-    run(config)
+    print(f"\nDone. {applied} applications submitted this run. See {LOG_FILE} for the full log.")
 
 
 if __name__ == "__main__":
-    main()
+    run()

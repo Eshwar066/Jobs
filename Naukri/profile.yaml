@@ -1,0 +1,51 @@
+# Naukri Auto-Apply Profile
+# Fill in ALL fields — these gate real screening questions
+
+# Required (blocking)
+total_experience_years: 3
+notice_period_days: 30
+current_ctc_lpa: 12.5
+expected_ctc_lpa: 18.0
+resume_file_name: "Eshwar_Sai_React.pdf"
+
+# Optional but used for common questions
+immediately_available: false
+ctc_disclosure_policy: "negotiable"  # "negotiable" or "disclose"
+current_city: "Bengaluru"
+relocate_cities: ["Bengaluru", "Hyderabad", "Pune", "Chennai", "Mumbai"]
+night_shift_ok: false
+weekend_ok: false
+current_employer: "Nuvama Wealth"
+
+# Role targeting
+target_roles:
+  - "React Developer"
+  - "Frontend Developer"
+  - "React.js Developer"
+  - "TypeScript Developer"
+  - "UI Developer"
+  - "Fullstack Developer"
+  - "MERN Stack Developer"
+
+# Search filters
+role_required_keywords:
+  "React Developer": ["react", "reactjs", "react.js", "react native", "next.js", "nextjs", "frontend", "front-end", "front end", "javascript", "typescript", "js", "ts", "fullstack", "full-stack", "full stack", "mern", "mern stack", "node", "nodejs", "node.js"]
+  "Frontend Developer": ["frontend", "front-end", "front end", "react", "reactjs", "react.js", "next.js", "nextjs", "javascript", "typescript", "js", "ts", "ui", "html", "css", "vue", "angular"]
+  "React.js Developer": ["react", "reactjs", "react.js", "react native", "next.js", "nextjs", "javascript", "typescript", "js", "ts", "fullstack", "full-stack", "full stack", "mern", "mern stack"]
+  "TypeScript Developer": ["typescript", "ts", "react", "reactjs", "react.js", "next.js", "nextjs", "javascript", "js", "node", "nodejs", "node.js", "fullstack", "full-stack", "full stack"]
+  "UI Developer": ["ui", "frontend", "front-end", "front end", "react", "reactjs", "react.js", "javascript", "typescript", "css", "html", "vue", "angular"]
+  "Fullstack Developer": ["fullstack", "full-stack", "full stack", "mern", "mern stack", "react", "reactjs", "react.js", "next.js", "nextjs", "node", "nodejs", "node.js", "javascript", "typescript", "python", "django", "java", "spring"]
+  "MERN Stack Developer": ["mern", "mern stack", "react", "reactjs", "react.js", "node", "nodejs", "node.js", "express", "mongodb", "javascript", "typescript", "fullstack", "full-stack", "full stack"]
+
+company_exclude: []
+company_include_only: []
+
+seniority_floor_years: 2
+seniority_ceiling_years: 6
+
+job_freshness_days: 1
+max_pages_per_role: 5
+pace_seconds_between_actions: 3
+stop_after_n_applications: 10
+browser_mode: "visible"  # visible, minimized, headless
+human_input_timeout_seconds: 120

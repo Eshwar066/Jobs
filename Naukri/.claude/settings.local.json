@@ -1,13 +1,15 @@
 {
-    "env": {
-        "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",
-        "ANTHROPIC_AUTH_TOKEN": "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",
-        "ANTHROPIC_API_KEY": "",
-        "ANTHROPIC_MODEL": "nvidia/nemotron-3-ultra-550b-a55b:free",
-        "CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT": "1",
-        "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1"
-    },
-    "permissions": {
-        "allow": []
-    }
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",
+    "ANTHROPIC_AUTH_TOKEN": "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",
+    "ANTHROPIC_API_KEY": "",
+    "ANTHROPIC_MODEL": "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT": "1",
+    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1"
+  },
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ]
+  }
 }

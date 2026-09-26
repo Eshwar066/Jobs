@@ -1,1 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+venv/
+.env
+
+# Generated
+debug_screenshots/
+applications_log.csv
+learned_answers.json
+qa_cache.json
+
+# IDE
+.mcp.json
+.vscode/
+.idea/
+*.swp
+
+# Browser data
 /browser_data

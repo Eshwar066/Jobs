@@ -274,6 +274,11 @@ h1 {
     margin-bottom: 12px;
 }
 
+.log-buttons {
+    display: flex;
+    gap: 8px;
+}
+
 .log-output {
     background: var(--code-bg);
     border: 1px solid var(--border);
@@ -307,4 +312,8 @@ h1 {
 
 .guide-steps a {
     color: var(--primary);
+}
+
+.btn.success {
+    background: var(--success) !important;
 }
