@@ -12,6 +12,7 @@ skipped and logged, and the run continues.
 """
 
 import csv
+import json
 import time
 from datetime import datetime
 from pathlib import Path
@@ -25,6 +26,7 @@ from common.human_input import ask_user
 
 SESSION_FILE = "naukri_state.json"
 LOG_FILE = "applications_log.csv"
+EXTERNAL_JOBS_FILE = "external_apply_jobs.json"
 DEBUG_DIR = Path("debug_screenshots")
 
 STOP_PHRASES = [
@@ -79,9 +81,41 @@ def log_row(row: list):
         w.writerow(row)
 
 
+def _save_external_job(card: dict):
+    """Save external apply job to JSON file for manual application."""
+    path = Path(EXTERNAL_JOBS_FILE)
+    jobs = []
+    if path.exists():
+        try:
+            jobs = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            jobs = []
+    # Avoid duplicates by jobId
+    job_id = card.get("jobId")
+    if job_id and any(j.get("jobId") == job_id for j in jobs):
+        return
+    job_entry = {
+        "jobId": card.get("jobId"),
+        "title": card.get("title"),
+        "company": card.get("company"),
+        "location": card.get("location"),
+        "experience": card.get("exp"),
+        "link": card.get("href"),
+        "saved_at": datetime.now().isoformat(),
+    }
+    jobs.append(job_entry)
+    path.write_text(json.dumps(jobs, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
 def passes_filters(card: dict, profile: Profile, role: str) -> tuple[bool, str]:
     title = (card.get("title") or "").lower()
     company = (card.get("company") or "").lower()
+
+    # Location filter: only Bengaluru jobs
+    location = (card.get("location") or "").lower()
+    preferred_cities = [c.lower() for c in profile.data.get("preferred_locations", ["bengaluru"])]
+    if preferred_cities and not any(city in location for city in preferred_cities):
+        return False, f"location not in preferred cities ({card.get('location')})"
 
     required_keywords = profile.data.get("role_required_keywords", {}).get(role)
     if not required_keywords:
@@ -670,9 +704,10 @@ def run():
 
                         apply_state = check_apply_button(page)
                         if apply_state == "external":
+                            _save_external_job(card)
                             log_row([datetime.now(), "naukri", card.get("title"),
                                       card.get("company"), "skipped", "external apply"])
-                            print(f"Skipped: {card.get('title')} @ {card.get('company')} -- external apply")
+                            print(f"Skipped: {card.get('title')} @ {card.get('company')} -- external apply (saved for manual)")
                             continue
                         if apply_state == "none":
                             log_row([datetime.now(), "naukri", card.get("title"),
