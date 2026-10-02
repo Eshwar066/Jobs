@@ -76,7 +76,7 @@ export function Experience() {
           variants={sectionVariants}
           className="space-y-8"
         >
-          {portfolioData.experience.map((exp, index) => (
+          {(portfolioData.experience as ExperienceItem[]).map((exp, index) => (
             <ExperienceCard key={exp.id} experience={exp} index={index} />
           ))}
         </motion.div>
@@ -85,7 +85,25 @@ export function Experience() {
   );
 }
 
-function ExperienceCard({ experience, index }: { experience: typeof portfolioData.experience[0]; index: number }) {
+interface ExperienceItem {
+  id: string;
+  company: string;
+  role: string;
+  period: string;
+  duration: string;
+  location: string;
+  type: string;
+  description: string;
+  achievements: string[];
+  technologies: string[];
+  products?: {
+    name: string;
+    description: string;
+    metrics: string;
+  }[];
+}
+
+function ExperienceCard({ experience, index }: { experience: ExperienceItem; index: number }) {
   const isEven = index % 2 === 0;
 
   return (
@@ -114,12 +132,12 @@ function ExperienceCard({ experience, index }: { experience: typeof portfolioDat
 
           <div className="flex flex-wrap gap-2 mb-6">
             {experience.technologies.slice(0, 6).map((tech) => (
-              <Badge key={tech} variant="neutral" className="text-xs">
+              <Badge key={tech} variant="secondary" className="text-xs">
                 {tech}
               </Badge>
             ))}
             {experience.technologies.length > 6 && (
-              <Badge variant="neutral" className="text-xs">
+              <Badge variant="secondary" className="text-xs">
                 +{experience.technologies.length - 6} more
               </Badge>
             )}
@@ -143,8 +161,8 @@ function ExperienceCard({ experience, index }: { experience: typeof portfolioDat
           <div className="space-y-4">
             <h4 className="heading-sm text-foreground">Key Products</h4>
             <div className="space-y-3">
-              {experience.products.map((product) => (
-                <motion.div
+              {experience.products.map((product, i) => (
+                <motion.div key={product.name + i}
                   initial={{ opacity: 0, y: 10 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}

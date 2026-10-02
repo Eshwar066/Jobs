@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Github, Linkedin, Twitter, Mail, MapPin } from "lucide-react";
+import { Github, Linkedin, Mail, MapPin, Phone } from "lucide-react";
 import { portfolioData } from "@/lib/portfolio-data";
 
 export function Footer() {
@@ -16,8 +16,7 @@ export function Footer() {
               className="flex items-center gap-2 text-xl font-display font-bold text-foreground mb-4"
               aria-label="Eshwar - Home"
             >
-              <span className="text-primary">E</span>
-              <span>shwar</span>
+              <span className="text-primary">Eshwar</span>
             </Link>
             <p className="text-muted-foreground text-body-md max-w-xs mb-6">
               {portfolioData.tagline}
@@ -40,8 +39,8 @@ export function Footer() {
               {[
                 { icon: Github, label: "GitHub", href: portfolioData.social.github },
                 { icon: Linkedin, label: "LinkedIn", href: portfolioData.social.linkedin },
-                { icon: Twitter, label: "Twitter", href: portfolioData.social.twitter },
                 { icon: Mail, label: "Email", href: `mailto:${portfolioData.email}` },
+                { icon: Phone, label: "Phone", href: `tel:${portfolioData.phone}` },
               ].map(({ icon: Icon, label, href }) => (
                 <li key={label}>
                   <a

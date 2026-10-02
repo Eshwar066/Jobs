@@ -31,11 +31,12 @@ export function Hero() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: "easeOut" }}
-              className="mb-6 flex items-center justify-center lg:justify-start gap-3"
+              className="mb-6 flex items-center justify-center lg:justify-start gap-3 flex-wrap"
             >
               <span className="badge-tech px-3 py-1">SDE2 @ Nuvama Wealth</span>
               <span className="badge-wealth px-3 py-1">Fintech & WealthTech</span>
               <span className="badge-tech px-3 py-1">AI/GenAI Explorer</span>
+              {/* <span className="badge-wealth px-3 py-1">Open to: React Native · Java/Spring Boot · FDE · Full-Stack</span> */}
             </motion.div>
 
             <motion.h1
@@ -162,7 +163,14 @@ function CodeTerminal() {
   );
 }
 
-function TerminalLine({ line, delay }: { line: typeof lines[0]; delay: number }) {
+type TerminalLineType = {
+  prompt: string;
+  command: string;
+  output: string;
+  typing?: boolean;
+};
+
+function TerminalLine({ line, delay }: { line: TerminalLineType; delay: number }) {
   const [showCommand, setShowCommand] = React.useState(false);
   const [showOutput, setShowOutput] = React.useState(false);
 

@@ -45,7 +45,7 @@ export function Skills() {
           </p>
         </motion.div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SkillCategoryKey)} className="w-full">
           <TabsList className="mb-10 justify-center bg-muted/50 rounded-xl p-1 w-fit mx-auto" aria-label="Skill categories">
             {skillCategories.map(({ key, label, icon: Icon, color }) => (
               <TabsTrigger
@@ -127,7 +127,6 @@ function SkillCategory({ category }: { category: SkillCategoryKey }) {
 
 function Certifications() {
   const certs = portfolioData.certifications;
-  const speaking = portfolioData.speaking;
 
   return (
     <div className="grid gap-8 md:grid-cols-2">
@@ -135,7 +134,7 @@ function Certifications() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Award className="h-5 w-5 text-primary" aria-hidden="true" />
-            Certifications
+            Education & Certifications
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -145,7 +144,10 @@ function Certifications() {
                 <Award className="h-6 w-6 text-primary/50 shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
                   <p className="font-medium text-foreground">{cert.name}</p>
-                  <p className="text-sm text-muted-foreground">{cert.issuer} • {cert.year}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {cert.issuer} • {cert.year}
+                    {cert.details && ` • ${cert.details}`}
+                  </p>
                 </div>
               </li>
             ))}
@@ -156,19 +158,16 @@ function Certifications() {
       <Card className="card-elevated">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
-            Speaking & Community
+            <Award className="h-5 w-5 text-primary" aria-hidden="true" />
+            Open to Opportunities
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="space-y-4" role="list">
-            {speaking.map((talk) => (
-              <li key={talk.title} className="flex items-start gap-4 p-4 rounded-lg bg-muted/50">
-                <BookOpen className="h-6 w-6 text-primary/50 shrink-0 mt-0.5" aria-hidden="true" />
-                <div>
-                  <p className="font-medium text-foreground">{talk.title}</p>
-                  <p className="text-sm text-muted-foreground">{talk.event} • {talk.year} • {talk.type}</p>
-                </div>
+          <ul className="space-y-3" role="list">
+            {portfolioData.openTo.map((role, index) => (
+              <li key={index} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Award className="h-5 w-5 text-primary/50 shrink-0" aria-hidden="true" />
+                <p className="text-sm text-foreground">{role}</p>
               </li>
             ))}
           </ul>

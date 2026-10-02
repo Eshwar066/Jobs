@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { portfolioData } from "@/lib/portfolio-data";
-import { Mail, Linkedin, Github, Twitter, MapPin, Send, Loader2, CheckCircle } from "lucide-react";
+import { Mail, Linkedin, Github, MapPin, Phone, Send, Loader2, CheckCircle } from "lucide-react";
 
 export function Contact() {
   const [formState, setFormState] = React.useState<"idle" | "submitting" | "success">("idle");
@@ -76,7 +76,7 @@ export function Contact() {
                 { icon: Mail, label: "Email", value: portfolioData.email, href: `mailto:${portfolioData.email}` },
                 { icon: Linkedin, label: "LinkedIn", value: "linkedin.com/in/eshwar", href: portfolioData.social.linkedin },
                 { icon: Github, label: "GitHub", value: "github.com/eshwar", href: portfolioData.social.github },
-                { icon: Twitter, label: "Twitter", value: "@eshwar", href: portfolioData.social.twitter },
+                { icon: Phone, label: "Phone", value: portfolioData.phone, href: `tel:${portfolioData.phone}` },
               ].map((item) => (
                 <a
                   key={item.label}

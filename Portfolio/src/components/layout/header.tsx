@@ -41,8 +41,7 @@ export function Header() {
             className="flex items-center gap-2 text-xl font-display font-bold text-foreground hover:opacity-80 transition-opacity"
             aria-label="Eshwar - Home"
           >
-            <span className="text-primary">E</span>
-            <span className="hidden sm:inline">shwar</span>
+            <span className="text-primary">Eshwar Sai</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-6">

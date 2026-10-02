@@ -135,12 +135,12 @@ function ProjectCard({ project, index }: { project: typeof portfolioData.project
         <CardContent className="flex-1 pt-2">
           <div className="flex flex-wrap gap-2 mb-4">
             {project.technologies.slice(0, 5).map((tech) => (
-              <Badge key={tech} variant="neutral" className="text-xs gap-1">
+              <Badge key={tech} variant="secondary" className="text-xs gap-1">
                 {tech}
               </Badge>
             ))}
             {project.technologies.length > 5 && (
-              <Badge variant="neutral" className="text-xs">+{project.technologies.length - 5}</Badge>
+              <Badge variant="secondary" className="text-xs">+{project.technologies.length - 5}</Badge>
             )}
           </div>
 
