@@ -1,0 +1,391 @@
+export const portfolioData = {
+  name: "Eshwar",
+  title: "Senior Frontend Engineer",
+  tagline: "Building scalable fintech platforms & exploring the AI frontier",
+  email: "eshwar@example.com",
+  location: "Bengaluru, India",
+  social: {
+    github: "https://github.com/eshwar",
+    linkedin: "https://linkedin.com/in/eshwar",
+    twitter: "https://twitter.com/eshwar",
+  },
+
+  summary: {
+    experience: "3+ years",
+    currentRole: "SDE2 / Frontend Developer",
+    company: "Nuvama Wealth",
+    domain: "Fintech / WealthTech",
+    products: ["Equity Trading", "NCD Platform", "IPO Applications"],
+    focus: "Real-time, data-heavy applications",
+    expandingInto: ["Python", "FastAPI", "GenAI", "LLMs", "RAG", "AI Agents"],
+  },
+
+  experience: [
+    {
+      id: "nuvama",
+      company: "Nuvama Wealth",
+      role: "SDE2 - Frontend Developer",
+      period: "2022 - Present",
+      duration: "2+ years",
+      location: "Bengaluru, India",
+      type: "Full-time",
+      description:
+        "Leading frontend architecture for wealth management platform serving 100K+ users. Building real-time trading interfaces, portfolio analytics, and regulatory-compliant financial products.",
+      achievements: [
+        "Architected micro-frontend architecture reducing bundle size by 40%",
+        "Built real-time WebSocket infrastructure for live market data (sub-100ms latency)",
+        "Led migration from legacy Angular to React/TypeScript with zero downtime",
+        "Implemented design system adopted across 5 product teams",
+        "Optimized Core Web Vitals: LCP < 1.5s, CLS < 0.1, FID < 50ms",
+      ],
+      technologies: [
+        "React",
+        "TypeScript",
+        "Redux Toolkit",
+        "WebSockets",
+        "RxJS",
+        "Jest",
+        "Cypress",
+        "Storybook",
+        "Tailwind CSS",
+        "Vite",
+      ],
+      products: [
+        {
+          name: "Equity Trading Platform",
+          description: "Real-time order management, portfolio tracking, and analytics",
+          metrics: "100K+ daily active users, 99.9% uptime",
+        },
+        {
+          name: "NCD Investment Platform",
+          description: "Non-convertible debenture discovery, comparison, and application",
+          metrics: "₹500Cr+ processed annually",
+        },
+        {
+          name: "IPO Application System",
+          description: "End-to-end IPO bidding with UPI mandate integration",
+          metrics: "50K+ applications per issue",
+        },
+      ],
+    },
+    {
+      id: "previous",
+      company: "TechStartup Inc",
+      role: "Frontend Developer",
+      period: "2020 - 2022",
+      duration: "1.5 years",
+      location: "Bengaluru, India",
+      type: "Full-time",
+      description:
+        "Built consumer-facing web applications with focus on performance and accessibility. Collaborated with design and backend teams to deliver pixel-perfect implementations.",
+      achievements: [
+        "Delivered 3 major product releases on schedule",
+        "Improved Lighthouse scores from 65 to 95+",
+        "Mentored 2 junior developers",
+        "Established CI/CD pipeline with automated testing",
+      ],
+      technologies: [
+        "React",
+        "JavaScript",
+        "Next.js",
+        "Styled Components",
+        "GraphQL",
+        "Apollo Client",
+        "Testing Library",
+      ],
+    },
+  ],
+
+  projects: [
+    {
+      id: "wealth-dashboard",
+      title: "Wealth Analytics Dashboard",
+      type: "Professional",
+      category: "Fintech",
+      description:
+        "Comprehensive portfolio analytics platform with real-time P&L, risk metrics, asset allocation visualization, and tax optimization suggestions.",
+      longDescription:
+        "A full-featured wealth management dashboard built for high-net-worth individuals and financial advisors. Features real-time data synchronization via WebSockets, interactive charts with drill-down capabilities, and automated tax-loss harvesting recommendations.",
+      image: "/projects/wealth-dashboard.jpg",
+      technologies: [
+        "React",
+        "TypeScript",
+        "Recharts",
+        "WebSockets",
+        "Redux Toolkit",
+        "Tailwind CSS",
+      ],
+      highlights: [
+        "Real-time portfolio valuation with <100ms latency",
+        "Interactive asset allocation treemap & sunburst charts",
+        "Tax optimization engine with scenario modeling",
+        "Multi-currency support with live FX rates",
+        "Role-based access control for advisors/clients",
+      ],
+      links: {
+        demo: "https://demo.wealthdash.example.com",
+        github: "https://github.com/eshwar/wealth-dashboard",
+        caseStudy: "/case-studies/wealth-dashboard",
+      },
+      featured: true,
+    },
+    {
+      id: "ncd-platform",
+      title: "NCD Investment Platform",
+      type: "Professional",
+      category: "Fintech",
+      description:
+        "End-to-end platform for discovering, comparing, and investing in Non-Convertible Debentures with automated KYC and UPI mandate integration.",
+      longDescription:
+        "Regulated investment platform for corporate bonds and NCDs. Includes issuer onboarding, credit rating integration, automated compliance checks, and seamless payment flow with UPI 2.0 mandates.",
+      image: "/projects/ncd-platform.jpg",
+      technologies: [
+        "React",
+        "TypeScript",
+        "Next.js",
+        "GraphQL",
+        "Hasura",
+        "PostgreSQL",
+        "Tailwind CSS",
+      ],
+      highlights: [
+        "Automated KYC/AML with video verification",
+        "Credit rating & financial health scoring",
+        "UPI 2.0 mandate for seamless payments",
+        "Regulatory reporting automation (SEBI/RBI)",
+        "Investor dashboard with coupon tracking",
+      ],
+      links: {
+        github: "https://github.com/eshwar/ncd-platform",
+        caseStudy: "/case-studies/ncd-platform",
+      },
+      featured: true,
+    },
+    {
+      id: "rag-doc-assistant",
+      title: "RAG Document Assistant",
+      type: "Personal",
+      category: "AI/GenAI",
+      description:
+        "Production-ready RAG system for document Q&A with hybrid search, citation tracking, and multi-modal support (PDF, images, tables).",
+      longDescription:
+        "A Retrieval-Augmented Generation system built with LangChain, FastAPI, and modern vector databases. Supports document ingestion, semantic chunking, hybrid search (dense + sparse), and streaming responses with source citations.",
+      image: "/projects/rag-assistant.jpg",
+      technologies: [
+        "Python",
+        "FastAPI",
+        "LangChain",
+        "LlamaIndex",
+        "PostgreSQL + pgvector",
+        "Redis",
+        "React",
+        "TypeScript",
+        "Tailwind CSS",
+      ],
+      highlights: [
+        "Hybrid search: BM25 + semantic embeddings",
+        "Multi-modal: text, tables, images, charts",
+        "Streaming responses with real-time citations",
+        "Document-level access control",
+        "Evaluation framework with RAGAS metrics",
+        "Docker + Kubernetes deployment ready",
+      ],
+      links: {
+        demo: "https://rag-assistant.example.com",
+        github: "https://github.com/eshwar/rag-doc-assistant",
+        caseStudy: "/case-studies/rag-assistant",
+      },
+      featured: true,
+    },
+    {
+      id: "agent-framework",
+      title: "Multi-Agent Orchestration Framework",
+      type: "Personal",
+      category: "AI/GenAI",
+      description:
+        "Lightweight framework for building autonomous AI agents with tool use, memory, planning, and human-in-the-loop capabilities.",
+      longDescription:
+        "A TypeScript-first agent framework inspired by LangGraph and AutoGen. Features graph-based workflows, persistent memory with vector storage, structured tool calling, and observability built-in.",
+      image: "/projects/agent-framework.jpg",
+      technologies: [
+        "TypeScript",
+        "Node.js",
+        "LangGraph",
+        "OpenAI SDK",
+        "PostgreSQL",
+        "Redis",
+        "Zod",
+        "Effect-TS",
+      ],
+      highlights: [
+        "Graph-based workflow orchestration",
+        "Persistent episodic & semantic memory",
+        "Structured tool calling with validation",
+        "Human-in-the-loop checkpoints",
+        "Built-in tracing & observability",
+        "Plugin system for custom tools",
+      ],
+      links: {
+        github: "https://github.com/eshwar/agent-framework",
+        caseStudy: "/case-studies/agent-framework",
+      },
+      featured: false,
+    },
+    {
+      id: "trading-simulator",
+      title: "Algo Trading Simulator",
+      type: "Personal",
+      category: "Fintech + AI",
+      description:
+        "Backtesting engine for quantitative strategies with walk-forward optimization, Monte Carlo simulation, and risk analytics.",
+      longDescription:
+        "Event-driven backtesting framework for systematic trading strategies. Supports multiple data sources, realistic execution modeling (slippage, latency, fees), and advanced portfolio construction.",
+      image: "/projects/trading-simulator.jpg",
+      technologies: [
+        "Python",
+        "FastAPI",
+        "Polars",
+        "NumPy",
+        "VectorBT",
+        "PostgreSQL",
+        "TimescaleDB",
+        "React",
+      ],
+      highlights: [
+        "Event-driven architecture (1M+ events/sec)",
+        "Walk-forward & Monte Carlo validation",
+        "Realistic execution modeling",
+        "Factor research & alpha decay analysis",
+        "Portfolio optimization (HRP, Black-Litterman)",
+        "Live paper trading integration",
+      ],
+      links: {
+        github: "https://github.com/eshwar/trading-simulator",
+        caseStudy: "/case-studies/trading-simulator",
+      },
+      featured: false,
+    },
+    {
+      id: "design-system",
+      title: "Enterprise Design System",
+      type: "Professional",
+      category: "Frontend Engineering",
+      description:
+        "Comprehensive component library with 60+ components, design tokens, theming, and documentation built for multi-product adoption.",
+      longDescription:
+        "A production-grade design system serving 5 product teams. Includes Figma-to-code pipeline, automated visual regression testing, and semantic versioning with automated changelog generation.",
+      image: "/projects/design-system.jpg",
+      technologies: [
+        "React",
+        "TypeScript",
+        "Storybook",
+        "Chromatic",
+        "Tailwind CSS",
+        "Style Dictionary",
+        "Changesets",
+        "Vite",
+      ],
+      highlights: [
+        "60+ accessible, tested components",
+        "Design tokens (colors, spacing, typography)",
+        "Dark/light mode with CSS variables",
+        "Figma sync with automated PRs",
+        "Visual regression testing in CI",
+        "Tree-shakable ESM/CJS bundles",
+      ],
+      links: {
+        github: "https://github.com/eshwar/design-system",
+        docs: "https://design-system.example.com",
+      },
+      featured: false,
+    },
+  ],
+
+  skills: {
+    frontend: [
+      { name: "React", level: 95, category: "Core" },
+      { name: "TypeScript", level: 95, category: "Core" },
+      { name: "Next.js", level: 90, category: "Framework" },
+      { name: "Redux Toolkit / Zustand", level: 90, category: "State" },
+      { name: "Tailwind CSS", level: 90, category: "Styling" },
+      { name: "WebSockets / SSE", level: 85, category: "Real-time" },
+      { name: "RxJS / Observables", level: 80, category: "Reactive" },
+      { name: "Testing (Jest, Cypress, RTL)", level: 85, category: "Quality" },
+      { name: "Storybook / Chromatic", level: 80, category: "DX" },
+      { name: "Vite / Webpack / Turbopack", level: 80, category: "Build" },
+    ],
+    backend: [
+      { name: "Python", level: 80, category: "Language" },
+      { name: "FastAPI", level: 85, category: "Framework" },
+      { name: "PostgreSQL", level: 85, category: "Database" },
+      { name: "Redis", level: 80, category: "Cache/Queue" },
+      { name: "GraphQL / Hasura", level: 80, category: "API" },
+      { name: "Docker / Kubernetes", level: 75, category: "DevOps" },
+      { name: "CI/CD (GitHub Actions, GitLab)", level: 80, category: "DevOps" },
+    ],
+    ai: [
+      { name: "LLMs (OpenAI, Anthropic, Local)", level: 85, category: "Models" },
+      { name: "RAG / Vector Databases", level: 85, category: "Retrieval" },
+      { name: "LangChain / LlamaIndex", level: 80, category: "Framework" },
+      { name: "LangGraph / Agent Frameworks", level: 75, category: "Agents" },
+      { name: "Prompt Engineering / Eval", level: 80, category: "Ops" },
+      { name: "Fine-tuning / LoRA", level: 65, category: "Training" },
+    ],
+    fintech: [
+      { name: "Equity Markets / Order Management", level: 90, category: "Domain" },
+      { name: "Fixed Income (NCDs, Bonds)", level: 85, category: "Domain" },
+      { name: "IPO / Primary Markets", level: 85, category: "Domain" },
+      { name: "Regulatory (SEBI, RBI)", level: 80, category: "Compliance" },
+      { name: "Risk & Portfolio Analytics", level: 85, category: "Analytics" },
+      { name: "Real-time Market Data", level: 90, category: "Data" },
+    ],
+  },
+
+  certifications: [
+    {
+      name: "AWS Certified Developer Associate",
+      issuer: "Amazon Web Services",
+      year: 2023,
+    },
+    {
+      name: "React Advanced Patterns",
+      issuer: "Frontend Masters",
+      year: 2022,
+    },
+    {
+      name: "TypeScript Mastery",
+      issuer: "Execute Program",
+      year: 2022,
+    },
+  ],
+
+  speaking: [
+    {
+      title: "Building Real-time Fintech Applications with React",
+      event: "React India 2023",
+      year: 2023,
+      type: "Conference Talk",
+    },
+    {
+      title: "Design Systems at Scale",
+      event: "JSConf India 2023",
+      year: 2023,
+      type: "Lightning Talk",
+    },
+    {
+      title: "From REST to GraphQL: Migration Strategies",
+      event: "Bengaluru React Meetup",
+      year: 2022,
+      type: "Meetup",
+    },
+  ],
+
+  education: {
+    degree: "Bachelor of Technology",
+    field: "Computer Science & Engineering",
+    institution: "Premier Engineering Institute",
+    year: 2020,
+  },
+};
+
+export type PortfolioData = typeof portfolioData;

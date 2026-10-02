@@ -38,6 +38,7 @@ role_required_keywords:
   "UI Developer": ["ui", "frontend", "front-end", "front end", "react", "reactjs", "react.js", "javascript", "typescript", "css", "html", "vue", "angular", "software development engineer", "sde", "software engineer"]
   "Fullstack Developer": ["fullstack", "full-stack", "full stack", "mern", "mern stack", "react", "reactjs", "react.js", "next.js", "nextjs", "node", "nodejs", "node.js", "javascript", "typescript", "python", "django", "java", "spring"]
   "MERN Stack Developer": ["mern", "mern stack", "react", "reactjs", "react.js", "node", "nodejs", "node.js", "express", "mongodb", "javascript", "typescript", "fullstack", "full-stack", "full stack"]
+  "JavaScript Developer": ["javascript", "js", "react", "reactjs", "react.js", "next.js", "nextjs", "typescript", "ts", "node", "nodejs", "node.js", "frontend", "front-end", "front end", "vue", "fullstack", "full-stack", "full stack", "mern", "mern stack", "software developer", "software development engineer", "sde", "software engineer"]
 
 company_exclude: ["Infosys"]
 company_include_only: []
@@ -50,7 +51,7 @@ seniority_ceiling_years: 6
 preferred_locations: ["Bengaluru", "Bangalore", "Remote","Hyderabad"]
 
 job_freshness_days: 1
-max_pages_per_role: 5
+max_pages_per_role: 10
 pace_seconds_between_actions: 3
 stop_after_n_applications: 100
 browser_mode: "visible"  # visible, minimized, headless
