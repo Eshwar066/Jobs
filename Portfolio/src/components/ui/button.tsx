@@ -41,9 +41,25 @@ export interface ButtonProps
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, loading = false, children, disabled, ...props }, ref) => {
-    const Comp = asChild ? Slot : "button";
-    const buttonChildren = (
-      <>
+    const baseClassName = cn(buttonVariants({ variant, size, className }));
+    if (asChild) {
+      const child = React.Children.only(children) as React.ReactElement<any>;
+      return React.cloneElement(child, {
+        className: cn(baseClassName, child.props.className),
+        disabled: disabled || loading,
+        "aria-busy": loading,
+        ...props,
+        ref,
+      });
+    }
+    return (
+      <button
+        className={baseClassName}
+        ref={ref}
+        disabled={disabled || loading}
+        aria-busy={loading}
+        {...props}
+      >
         {loading && (
           <svg
             className="mr-2 h-4 w-4 animate-spin"
@@ -68,18 +84,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           </svg>
         )}
         {children}
-      </>
-    );
-    return (
-      <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
-        ref={ref}
-        disabled={disabled || loading}
-        aria-busy={loading}
-        {...props}
-      >
-        {asChild ? <span>{buttonChildren}</span> : buttonChildren}
-      </Comp>
+      </button>
     );
   }
 );
