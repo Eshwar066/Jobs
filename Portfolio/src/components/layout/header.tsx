@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useScroll } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { NavigationMenu, NavigationMenuList, NavigationMenuItem, NavigationMenuTrigger } from "@/components/ui/navigation-menu";
+import { NavigationMenu, NavigationMenuList, NavigationMenuItem, NavigationMenuLink } from "@/components/ui/navigation-menu";
 
 const navigation = [
   { name: "Experience", href: "#experience" },
@@ -49,9 +49,12 @@ export function Header() {
               <NavigationMenuList>
                 {navigation.map((item) => (
                   <NavigationMenuItem key={item.name}>
-                    <NavigationMenuTrigger className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+                    <NavigationMenuLink
+                      href={item.href}
+                      className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                    >
                       {item.name}
-                    </NavigationMenuTrigger>
+                    </NavigationMenuLink>
                   </NavigationMenuItem>
                 ))}
               </NavigationMenuList>
