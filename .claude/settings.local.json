@@ -1,13 +1,17 @@
 {
-    "env": {
-        "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",
-        "ANTHROPIC_AUTH_TOKEN": "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",
-        "ANTHROPIC_API_KEY": "",
-        "ANTHROPIC_MODEL": "nvidia/nemotron-3-ultra-550b-a55b:free",
-        "CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT": "1",
-        "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1"
-    },
-    "permissions": {
-        "allow": []
-    }
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",
+    "ANTHROPIC_AUTH_TOKEN": "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",
+    "ANTHROPIC_API_KEY": "",
+    "ANTHROPIC_MODEL": "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT": "1",
+    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1"
+  },
+  "permissions": {
+    "allow": [
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_wait_for"
+    ]
+  }
 }
