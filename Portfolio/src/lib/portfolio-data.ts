@@ -1,3 +1,9 @@
+type ProjectLinks = {
+  github?: string;
+  demo?: string;
+  caseStudy?: string;
+};
+
 export const portfolioData = {
   name: "Eshwar Sai",
   title: "Frontend Engineer",
@@ -137,7 +143,7 @@ export const portfolioData = {
       ],
       links: {
         // github: "https://github.com/Eshwar066/algo-trading",
-      },
+      } as ProjectLinks,
       featured: true,
     },
     {
@@ -169,7 +175,7 @@ export const portfolioData = {
       ],
       links: {
         // caseStudy: "/case-studies/ncd-ipo-platform",
-      },
+      } as ProjectLinks,
       featured: true,
     },
     {
@@ -201,7 +207,7 @@ export const portfolioData = {
       ],
       links: {
         // github: "https://github.com/Eshwar066/Jobs/tree/f01b0439c0fabb8c5cd164080a364ef43c4ee5a6/Naukri",
-      },
+      } as ProjectLinks,
       featured: true,
     },
     {
@@ -234,7 +240,7 @@ export const portfolioData = {
       ],
       links: {
         // github: "https://github.com/Eshwar066/Jobs",
-      },
+      } as ProjectLinks,
       featured: true,
     },
   ],
